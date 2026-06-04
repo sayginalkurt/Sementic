@@ -41,7 +41,6 @@
               Min. frequency
               <input type="number" id="min-freq" value="2" min="1" max="10" />
             </label>
-            <button type="button" id="sample-btn" class="btn-text">Sample</button>
             <button type="submit" id="submit-btn" class="btn">Analyze</button>
           </div>
         </form>
@@ -56,6 +55,9 @@
 
         <details class="fold">
           <summary>Concepts</summary>
+          <p class="fold-label">English translation</p>
+          <div id="english-by-sentence" class="concept-lines muted-lines"></div>
+          <p class="fold-label">Concept codes</p>
           <div id="concepts-by-sentence" class="concept-lines"></div>
           <table class="data-table" id="freq-table">
             <thead>
@@ -75,7 +77,14 @@
 
         <div class="output-head">
           <span id="graph-stats" class="hint"></span>
-          <button type="button" id="download-btn" class="btn-text" disabled>Download CSV</button>
+          <div class="output-actions">
+            <button type="button" id="download-graph-btn" class="btn-text" disabled>
+              Download graph
+            </button>
+            <button type="button" id="download-btn" class="btn-text" disabled>
+              Download XLSX
+            </button>
+          </div>
         </div>
 
         <div id="graph-network" class="graph" aria-label="Network graph"></div>

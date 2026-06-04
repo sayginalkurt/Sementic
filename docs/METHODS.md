@@ -1,6 +1,6 @@
 # Analysis methods
 
-All three analyses use the **same input**: AI-extracted thematic concept codes per sentence (not raw words). Vocabulary is filtered by minimum frequency (`min_freq`).
+All three analyses use the **same input**: AI-extracted thematic concept codes per sentence (not raw words). Input text in any language is **translated to English** first; translation, cleaning, and codes are all English. Vocabulary is filtered by minimum frequency (`min_freq`).
 
 **Unit of analysis:** one sentence = one stanza.
 
@@ -14,9 +14,9 @@ All three analyses use the **same input**: AI-extracted thematic concept codes p
 
 1. For each sentence, take the set of active concepts.
 2. For every unordered pair (A, B) in that set, increment matrix[A, B] and matrix[B, A].
-3. For each concept present, increment the diagonal (sentence-level presence count).
+3. Diagonal stays zero (no self-loops).
 
-**Matrix:** symmetric counts ≥ 0. Off-diagonal = joint presence; diagonal = how often the concept appears in a sentence.
+**Matrix:** symmetric counts ≥ 0 on off-diagonal pairs only; diagonal = 0.
 
 **Graph:** an edge exists for every pair with co-occurrence count > 0.
 
@@ -33,9 +33,9 @@ All three analyses use the **same input**: AI-extracted thematic concept codes p
 1. Treat each sentence as a “document” containing its concept codes.
 2. Build a TF‑IDF vector per concept across sentences (each concept’s profile of where it shows up).
 3. Compute **cosine similarity** between every pair of concept profiles.
-4. Set diagonal to 1.
+4. Diagonal set to 0 (no self-loops; perfect self-similarity is excluded).
 
-**Matrix:** values in [0, 1]; similarity, not raw counts.
+**Matrix:** off-diagonal similarity in [0, 1]; diagonal = 0.
 
 **Graph:** keeps the strongest off-diagonal links (similarity ≥ median of candidates, capped for readability).
 
@@ -67,6 +67,9 @@ All three analyses use the **same input**: AI-extracted thematic concept codes p
 ## Shared pipeline
 
 ```
-Text → AI concept codes (per sentence) → vocabulary (min frequency)
-     → three matrices → network graphs + CSV export
+Text (any language) → English translation (per sentence)
+     → AI English concept codes (per sentence) → vocabulary (min frequency)
+     → three statistical matrices → base graphs
+     → AI direction (a→b, b→a, a↔b) + polarity (±) from English text
+     → directed signed matrices + network graphs + XLSX export
 ```

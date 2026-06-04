@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-testdata.txt üzerinde üç ağ analizi çalıştırır ve kelime × kelime matrislerini CSV olarak kaydeder.
+CLI: üç ağ analizi matrislerini XLSX olarak kaydeder (AI kullanmaz; token tabanlı).
 
-  - Co-occurrence Network Analysis  → output/cooccurrence_matrix.csv
-  - Semantic Network Analysis       → output/semantic_matrix.csv
-  - Epistemic Network Analysis      → output/epistemic_matrix.csv
+  - Co-occurrence  → cooccurrence_matrix.xlsx
+  - Semantic       → semantic_matrix.xlsx
+  - Epistemic      → epistemic_matrix.xlsx
 """
 
 from __future__ import annotations
@@ -17,13 +17,12 @@ import pandas as pd
 from analyses import run_all_analyses
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_INPUT = ROOT / "testdata.txt"
 DEFAULT_OUTPUT = ROOT / "output"
 
 
 def save_matrix(df: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path, encoding="utf-8-sig")
+    df.to_excel(path, engine="openpyxl")
     print(f"  → {path}  ({df.shape[0]}×{df.shape[1]})")
 
 
@@ -35,15 +34,15 @@ def main() -> None:
         "-i",
         "--input",
         type=Path,
-        default=DEFAULT_INPUT,
-        help="Girdi metin dosyası",
+        required=True,
+        help="Girdi metin dosyası (.txt)",
     )
     parser.add_argument(
         "-o",
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT,
-        help="CSV çıktı klasörü",
+        help="XLSX çıktı klasörü",
     )
     parser.add_argument(
         "--min-freq",
@@ -61,9 +60,9 @@ def main() -> None:
     print("Matrisler:")
 
     names = {
-        "cooccurrence": "cooccurrence_matrix.csv",
-        "semantic": "semantic_matrix.csv",
-        "epistemic": "epistemic_matrix.csv",
+        "cooccurrence": "cooccurrence_matrix.xlsx",
+        "semantic": "semantic_matrix.xlsx",
+        "epistemic": "epistemic_matrix.xlsx",
     }
     for key, filename in names.items():
         save_matrix(matrices[key], args.output_dir / filename)

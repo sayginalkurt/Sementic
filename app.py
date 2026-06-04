@@ -18,6 +18,7 @@ load_dotenv(ROOT / ".env", override=True)
 
 from ai_preprocess import concepts_preview, extract_concepts_with_ai
 from analyses import dataframe_to_payload, run_all_analyses_from_sentences
+from ai_relations import annotate_graphs_with_relations, matrices_from_directed_graphs
 from graph import graphs_from_matrices
 
 STATIC = ROOT / "static"
@@ -34,20 +35,12 @@ class AnalyzeBody(BaseModel):
 class DownloadBody(BaseModel):
     labels: list[str]
     values: list[list[float]]
-    filename: str = "matrix.csv"
+    filename: str = "matrix.xlsx"
 
 
 @app.get("/", response_class=HTMLResponse)
 async def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
-
-
-@app.get("/api/sample")
-async def sample_text() -> FileResponse:
-    path = ROOT / "testdata.txt"
-    if not path.is_file():
-        raise HTTPException(404, "testdata.txt bulunamadı.")
-    return FileResponse(path, media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/health")
@@ -73,7 +66,7 @@ async def analyze(
         raise HTTPException(400, "En az 20 karakter metin veya dosya gerekli.")
 
     try:
-        sentences, concept_list = extract_concepts_with_ai(raw)
+        sentences, concept_list, english_sentences = extract_concepts_with_ai(raw)
     except RuntimeError as exc:
         raise HTTPException(503, str(exc)) from exc
     except ValueError as exc:
@@ -91,14 +84,27 @@ async def analyze(
     matrix_payload = {
         key: dataframe_to_payload(df) for key, df in matrices.items()
     }
+    graphs = graphs_from_matrices(matrix_payload)
+    english_text = "\n".join(english_sentences)
+    try:
+        graphs = annotate_graphs_with_relations(graphs, english_text)
+        matrix_payload = matrices_from_directed_graphs(
+            graphs, {k: v["labels"] for k, v in matrix_payload.items()}
+        )
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Relation inference error: {exc}") from exc
+
     return {
         "sentence_count": len(sentences),
         "vocabulary_size": len(vocab),
         "vocabulary": vocab,
+        "english_sentences": english_sentences,
         "concepts_by_sentence": sentences,
         "concept_frequency": concepts_preview(sentences),
         "matrices": matrix_payload,
-        "graphs": graphs_from_matrices(matrix_payload),
+        "graphs": graphs,
         "matrix_labels": {
             "cooccurrence": "Eş-Oluşum (Co-occurrence)",
             "semantic": "Anlamsal (Semantic)",
@@ -110,7 +116,7 @@ async def analyze(
 @app.post("/api/analyze/json")
 async def analyze_json(body: AnalyzeBody) -> dict:
     try:
-        sentences, _ = extract_concepts_with_ai(body.text)
+        sentences, _, english_sentences = extract_concepts_with_ai(body.text)
         vocab, matrices = run_all_analyses_from_sentences(
             sentences, min_freq=body.min_freq
         )
@@ -124,30 +130,43 @@ async def analyze_json(body: AnalyzeBody) -> dict:
     matrix_payload = {
         key: dataframe_to_payload(df) for key, df in matrices.items()
     }
+    graphs = graphs_from_matrices(matrix_payload)
+    english_text = "\n".join(english_sentences)
+    try:
+        graphs = annotate_graphs_with_relations(graphs, english_text)
+        matrix_payload = matrices_from_directed_graphs(
+            graphs, {k: v["labels"] for k, v in matrix_payload.items()}
+        )
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Relation inference error: {exc}") from exc
+
     return {
         "sentence_count": len(sentences),
         "vocabulary_size": len(vocab),
         "vocabulary": vocab,
+        "english_sentences": english_sentences,
         "concepts_by_sentence": sentences,
         "concept_frequency": concepts_preview(sentences),
         "matrices": matrix_payload,
-        "graphs": graphs_from_matrices(matrix_payload),
+        "graphs": graphs,
     }
 
 
-@app.post("/api/download/csv")
-async def download_csv(body: DownloadBody) -> StreamingResponse:
+@app.post("/api/download/xlsx")
+async def download_xlsx(body: DownloadBody) -> StreamingResponse:
     if not body.labels or not body.values:
         raise HTTPException(400, "Boş matris indirilemez.")
     import pandas as pd
 
     df = pd.DataFrame(body.values, index=body.labels, columns=body.labels)
-    buf = io.StringIO()
-    df.to_csv(buf, encoding="utf-8-sig")
+    buf = io.BytesIO()
+    df.to_excel(buf, engine="openpyxl")
     buf.seek(0)
-    name = body.filename if body.filename.endswith(".csv") else f"{body.filename}.csv"
+    name = body.filename if body.filename.endswith(".xlsx") else f"{body.filename}.xlsx"
     return StreamingResponse(
         iter([buf.getvalue()]),
-        media_type="text/csv; charset=utf-8",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{name}"'},
     )

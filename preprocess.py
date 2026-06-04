@@ -6,7 +6,33 @@ import re
 import unicodedata
 from typing import Iterable
 
-# Sık kullanılan Türkçe durak kelimeler (küçük program için yerleşik liste)
+# English stopwords (AI concept pipeline; CLI may still use Turkish list)
+ENGLISH_STOPWORDS = frozenset(
+    """
+    a an the and or nor but if because as at by for from in into of on onto
+    to with without about above across after against along amid among around
+    before behind below beneath beside besides between beyond during except
+    inside near off out outside over past per through throughout till toward
+    towards under underneath unlike until up upon via within without
+    i me my mine we us our ours you your yours he him his she her hers it its
+    they them their theirs this that these those who whom whose which what
+    when where why how all any both each few more most other some such no
+    nor not only own same so than too very just also still even already
+    then once here there now again ever never always sometimes often usually
+    really quite rather perhaps maybe yes no ok okay well um uh like kind
+    sort type thing things something someone somebody anyone everybody nobody
+    people person human humans being beings one ones another others each other
+    would could should may might must shall will can do does did done doing
+    have has had having be am is are was were been being get gets got getting
+    make makes made making go goes went going come comes came coming say says
+    said saying think thinks thought know knows knew see sees saw want wants
+    need needs use uses used using take takes took give gives gave tell tells
+    feel feels felt seem seems seemed look looks looked become becomes became
+    there their they're its it's
+    """.split()
+)
+
+# Sık kullanılan Türkçe durak kelimeler (CLI / tokenize yolu)
 TURKISH_STOPWORDS = frozenset(
     """
     acaba altı ama ancak artık aslında az biraz bile birçok biri birkaç birşey

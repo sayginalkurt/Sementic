@@ -11,6 +11,7 @@ const matrixWrap = document.getElementById("matrix-table-wrap");
 const graphContainer = document.getElementById("graph-network");
 const graphStats = document.getElementById("graph-stats");
 const downloadBtn = document.getElementById("download-btn");
+const downloadGraphBtn = document.getElementById("download-graph-btn");
 
 let networkInstance = null;
 let analysisResult = null;
@@ -22,24 +23,30 @@ const TAB_ACCENT = {
   epistemic: { node: "#b85a52", edge: "#d4a09a", hi: "#f8eeec" },
 };
 
-const DOWNLOAD_NAMES = {
-  cooccurrence: "cooccurrence_matrix.csv",
-  semantic: "semantic_matrix.csv",
-  epistemic: "epistemic_matrix.csv",
+const MATRIX_DOWNLOAD_NAMES = {
+  cooccurrence: "cooccurrence_matrix.xlsx",
+  semantic: "semantic_matrix.xlsx",
+  epistemic: "epistemic_matrix.xlsx",
+};
+
+const GRAPH_DOWNLOAD_NAMES = {
+  cooccurrence: "cooccurrence_network.png",
+  semantic: "semantic_network.png",
+  epistemic: "epistemic_network.png",
 };
 
 const METHOD_NOTES = {
   cooccurrence: {
     title: "Co-occurrence",
-    body: `Counts how often two concepts appear in the <em>same sentence</em> (stanza). Cell (i, j) is the number of sentences where both concepts are active; the diagonal is how often a concept appears in any sentence. The network shows direct topical proximity in the text—concepts that are talked about together in one utterance.`,
+    body: `Counts co-occurrence in the same sentence (diagonal = 0). An AI layer reads the English text and assigns each link a <em>direction</em> (A→B, B→A, or A↔B) and <em>polarity</em> (supportive vs tension). Matrix cells are signed (negative × −1); arrows and green/red edges show direction and polarity.`,
   },
   semantic: {
     title: "Semantic",
-    body: `Builds a <em>distributional</em> similarity matrix. Each sentence is a document; each concept gets a TF‑IDF profile across sentences. Cell (i, j) is the cosine similarity between those profiles—high values mean the concepts tend to appear in similar contexts even when not in the same sentence. The graph keeps the strongest similarity links only.`,
+    body: `TF‑IDF cosine similarity between concepts (strongest links kept). Direction and polarity come from AI interpretation of the source text; the matrix is asymmetric and signed.`,
   },
   epistemic: {
     title: "Epistemic (ENA-style)",
-    body: `Inspired by Epistemic Network Analysis. Links concepts that co‑activate in the same sentence, plus weaker links between <em>consecutive</em> sentences (lag weight 0.5). The matrix is then <em>centered</em>: observed links minus expected links from marginal frequencies. Positive values = more connected than chance; negative = less than expected. Green/red edges in the graph show sign.`,
+    body: `ENA-style co-activation (same sentence + lag across sentences), then centered. Link direction and positive/negative meaning are inferred from the text by AI (not only matrix sign). Green = positive, red = negative (× −1).`,
   },
 };
 
@@ -52,6 +59,11 @@ function renderMethodNote(tabKey) {
   const note = METHOD_NOTES[tabKey];
   if (!el || !note) return;
   el.innerHTML = `<strong>${note.title}</strong>${note.body}`;
+}
+
+function setDownloadButtonsEnabled(on) {
+  downloadBtn.disabled = !on;
+  downloadGraphBtn.disabled = !on;
 }
 
 async function checkHealth() {
@@ -93,6 +105,14 @@ fileInput.addEventListener("change", () => {
 });
 
 function renderConcepts(data) {
+  const englishGrid = document.getElementById("english-by-sentence");
+  englishGrid.innerHTML = "";
+  (data.english_sentences || []).forEach((line, i) => {
+    const p = document.createElement("p");
+    p.textContent = `${i + 1}. ${line || "—"}`;
+    englishGrid.appendChild(p);
+  });
+
   const grid = document.getElementById("concepts-by-sentence");
   grid.innerHTML = "";
   data.concepts_by_sentence.forEach((words, i) => {
@@ -119,9 +139,25 @@ function escapeHtml(s) {
 }
 
 function formatCell(v, key) {
-  if (key === "semantic") return Number(v).toFixed(3);
-  if (key === "epistemic") return Number(v).toFixed(2);
-  return Number(v) % 1 === 0 ? String(Math.round(v)) : Number(v).toFixed(2);
+  const n = Number(v);
+  if (n === 0) return "0";
+  if (key === "semantic") return n.toFixed(3);
+  if (key === "epistemic" || n < 0) return n.toFixed(2);
+  return n % 1 === 0 ? String(Math.round(n)) : n.toFixed(2);
+}
+
+function edgeArrows(direction) {
+  const scale = 0.55;
+  if (direction === "b_to_a") {
+    return { from: { enabled: true, scaleFactor: scale } };
+  }
+  if (direction === "mutual") {
+    return {
+      to: { enabled: true, scaleFactor: scale },
+      from: { enabled: true, scaleFactor: scale },
+    };
+  }
+  return { to: { enabled: true, scaleFactor: scale } };
 }
 
 function renderGraph(tabKey) {
@@ -135,6 +171,7 @@ function renderGraph(tabKey) {
       networkInstance.destroy();
       networkInstance = null;
     }
+    downloadGraphBtn.disabled = true;
     return;
   }
 
@@ -169,7 +206,9 @@ function renderGraph(tabKey) {
       to: e.to,
       value: e.value,
       title: e.title,
+      arrows: edgeArrows(e.direction),
       color: edgeColors[e.polarity] || edgeColors.neutral,
+      dashes: e.polarity === "negative",
     }))
   );
 
@@ -188,6 +227,8 @@ function renderGraph(tabKey) {
       nodes: { shape: "dot", scaling: { min: 10, max: 28 } },
     }
   );
+
+  downloadGraphBtn.disabled = false;
 }
 
 function renderMatrix(tabKey) {
@@ -223,7 +264,8 @@ function renderMatrix(tabKey) {
     values[i].forEach((v) => {
       const td = document.createElement("td");
       td.textContent = formatCell(v, tabKey);
-      if (v >= threshold && v > 0) td.classList.add("high");
+      if (v < 0) td.classList.add("negative");
+      else if (v >= threshold && v > 0) td.classList.add("high");
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
@@ -243,30 +285,49 @@ document.querySelectorAll(".tab").forEach((btn) => {
   });
 });
 
-function matrixToCsv(labels, values) {
-  const header = ["", ...labels].map((c) => `"${String(c).replace(/"/g, '""')}"`);
-  const lines = [header.join(",")];
-  labels.forEach((row, i) => {
-    const cells = [
-      `"${String(row).replace(/"/g, '""')}"`,
-      ...values[i].map((v) => String(v)),
-    ];
-    lines.push(cells.join(","));
-  });
-  return "\uFEFF" + lines.join("\n");
-}
-
-downloadBtn.addEventListener("click", () => {
-  const m = analysisResult?.matrices?.[activeTab];
-  if (!m) return;
-  const csv = matrixToCsv(m.labels, m.values);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
+downloadGraphBtn.addEventListener("click", () => {
+  if (!networkInstance?.canvas?.frame?.canvas) {
+    showError("No graph to download.");
+    return;
+  }
+  networkInstance.stopSimulation();
+  const canvas = networkInstance.canvas.frame.canvas;
+  const url = canvas.toDataURL("image/png");
   const a = document.createElement("a");
   a.href = url;
-  a.download = DOWNLOAD_NAMES[activeTab] || "matrix.csv";
+  a.download = GRAPH_DOWNLOAD_NAMES[activeTab] || "network.png";
   a.click();
-  URL.revokeObjectURL(url);
+});
+
+downloadBtn.addEventListener("click", async () => {
+  const m = analysisResult?.matrices?.[activeTab];
+  if (!m) return;
+
+  showError("");
+  try {
+    const res = await fetch("/api/download/xlsx", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        labels: m.labels,
+        values: m.values,
+        filename: MATRIX_DOWNLOAD_NAMES[activeTab] || "matrix.xlsx",
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || "Download failed");
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = MATRIX_DOWNLOAD_NAMES[activeTab] || "matrix.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    showError(err.message || String(err));
+  }
 });
 
 form.addEventListener("submit", async (e) => {
@@ -283,6 +344,7 @@ form.addEventListener("submit", async (e) => {
   fd.append("min_freq", document.getElementById("min-freq").value || "2");
 
   setLoading(true);
+  setDownloadButtonsEnabled(false);
   try {
     const res = await fetch("/api/analyze", { method: "POST", body: fd });
     const data = await res.json().catch(() => ({}));
@@ -294,21 +356,12 @@ form.addEventListener("submit", async (e) => {
     renderConcepts(data);
     renderMatrix(activeTab);
     results.hidden = false;
-    downloadBtn.disabled = false;
+    setDownloadButtonsEnabled(true);
     results.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
     showError(err.message || String(err));
   } finally {
     setLoading(false);
-  }
-});
-
-document.getElementById("sample-btn").addEventListener("click", async () => {
-  try {
-    const res = await fetch("/api/sample");
-    if (res.ok) textInput.value = await res.text();
-  } catch {
-    showError("Could not load sample.");
   }
 });
 

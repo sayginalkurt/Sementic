@@ -1,6 +1,6 @@
 # Sementic Analysis Tool
 
-Thematic concept extraction (OpenAI) and three network analyses: **co-occurrence**, **semantic**, and **epistemic (ENA-style)**. Web UI with matrices, graphs, and CSV export.
+Thematic concept extraction (OpenAI) and three network analyses: **co-occurrence**, **semantic**, and **epistemic (ENA-style)**. Web UI with matrices, interactive graphs (PNG export), and XLSX export.
 
 **Version:** v0.00001
 
@@ -54,13 +54,16 @@ See [docs/METHODS.md](docs/METHODS.md) for how each analysis is computed.
 | Path | Role |
 |------|------|
 | `app.py` | FastAPI server |
-| `ai_preprocess.py` | OpenAI concept extraction |
+| `ai_preprocess.py` | Translate to English + OpenAI concept extraction |
 | `analyses.py` | Matrix computation |
 | `graph.py` | Matrix → network graph |
+| `ai_relations.py` | AI direction & polarity on graph links |
 | `static/` | Frontend |
 
-## CLI (no AI)
+## CLI (no AI, local tokenization only)
 
 ```bash
-python main.py -i testdata.txt -o output --min-freq 2
+python main.py -i your_text.txt -o output --min-freq 2
 ```
+
+Generated `output/` and `*.csv` / `*.xlsx` files are gitignored.

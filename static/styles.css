@@ -247,12 +247,29 @@ button {
   color: var(--text);
 }
 
+.fold-label {
+  margin: 0.65rem 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.fold-label:first-of-type {
+  margin-top: 0.35rem;
+}
+
 .concept-lines {
   font-size: 0.84rem;
   color: var(--muted);
   margin: 0.5rem 0 0.75rem;
   max-height: 10rem;
   overflow-y: auto;
+}
+
+.muted-lines p {
+  font-style: italic;
 }
 
 .concept-lines p {
@@ -338,6 +355,12 @@ button {
   margin-bottom: 0.55rem;
 }
 
+.output-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+}
+
 .hint {
   font-size: 0.8rem;
   color: var(--muted);
@@ -407,6 +430,11 @@ button {
 .matrix-table thead th.corner {
   left: 0;
   z-index: 3;
+}
+
+.matrix-table td.negative {
+  color: #9a4841;
+  background: rgba(196, 92, 92, 0.14);
 }
 
 .matrix-table td.high {

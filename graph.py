@@ -62,7 +62,7 @@ def matrix_to_graph(
                         "from": labels[i],
                         "to": labels[j],
                         "weight": abs(w),
-                        "polarity": "positive" if w > 0 else "negative",
+                        "polarity": "neutral",
                     }
                 )
     else:

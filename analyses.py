@@ -17,6 +17,13 @@ def _empty_matrix(vocab: list[str]) -> pd.DataFrame:
     return pd.DataFrame(0.0, index=vocab, columns=vocab)
 
 
+def clear_self_loops(df: pd.DataFrame) -> pd.DataFrame:
+    """Zero the diagonal so matrices and exports have no self-loops (i == j)."""
+    arr = df.to_numpy(copy=True)
+    np.fill_diagonal(arr, 0.0)
+    return pd.DataFrame(arr, index=df.index, columns=df.columns)
+
+
 def cooccurrence_matrix(
     sentences: list[list[str]],
     vocab: list[str],
@@ -37,12 +44,8 @@ def cooccurrence_matrix(
             i, j = idx[a], idx[b]
             mat[i, j] += 1
             mat[j, i] += 1
-        if not binary:
-            for w in present:
-                i = idx[w]
-                mat[i, i] += 1
 
-    return pd.DataFrame(mat, index=vocab, columns=vocab)
+    return clear_self_loops(pd.DataFrame(mat, index=vocab, columns=vocab))
 
 
 def semantic_matrix(
@@ -74,8 +77,7 @@ def semantic_matrix(
     # Terim-terim: her kelimenin dokümanlardaki bağlam vektörü
     term_context = doc_term.T  # vocab × docs
     sim = cosine_similarity(term_context)
-    np.fill_diagonal(sim, 1.0)
-    return pd.DataFrame(sim, index=vocab, columns=vocab)
+    return clear_self_loops(pd.DataFrame(sim, index=vocab, columns=vocab))
 
 
 def epistemic_matrix(
@@ -127,7 +129,7 @@ def epistemic_matrix(
     else:
         centered = raw
 
-    return pd.DataFrame(centered, index=vocab, columns=vocab)
+    return clear_self_loops(pd.DataFrame(centered, index=vocab, columns=vocab))
 
 
 def dataframe_to_payload(df: pd.DataFrame) -> dict:
