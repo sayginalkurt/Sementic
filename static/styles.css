@@ -41,6 +41,10 @@ body {
   max-width: 54rem;
   margin: 0 auto;
   padding: 2rem 1.35rem 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
 }
 
 .brand {
@@ -82,6 +86,10 @@ body {
   display: block;
 }
 
+.logout-form {
+  margin-left: auto;
+}
+
 .page {
   max-width: 54rem;
   margin: 0 auto;
@@ -101,6 +109,162 @@ body {
 
 .block + .block {
   margin-top: 1.1rem;
+}
+
+.places-block {
+  border-top: 3px solid #c4a035;
+}
+
+.section-title {
+  margin: 0 0 0.35rem;
+  font: 600 1.05rem/1.3 var(--serif);
+}
+
+.section-lead {
+  margin: 0 0 0.85rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.place-search-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.place-search {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  font: inherit;
+  margin-bottom: 0.65rem;
+}
+
+.place-map {
+  height: 280px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  margin-bottom: 0.75rem;
+}
+
+.place-meta {
+  font-size: 0.88rem;
+  margin-bottom: 0.65rem;
+}
+
+.place-meta .hint {
+  font-size: 0.82rem;
+}
+
+.review-maps-link {
+  font-size: 0.82rem;
+  color: var(--c-se);
+}
+
+.reviews-panel {
+  margin-top: 0.5rem;
+}
+
+.reviews-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.reviews-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.reviews-list li {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.84rem;
+}
+
+.reviews-list li:last-child {
+  border-bottom: none;
+}
+
+.review-author {
+  font-weight: 600;
+  display: block;
+}
+
+.review-meta {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.reviews-list p {
+  margin: 0.35rem 0 0;
+  line-height: 1.45;
+}
+
+.reviews-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.places-actions {
+  margin-top: 0.75rem;
+}
+
+.review-analyses-root {
+  margin-top: 1rem;
+}
+
+.review-analyses-root.hidden {
+  display: none;
+}
+
+.review-analyses-summary {
+  margin: 0 0 0.75rem;
+}
+
+.review-analysis-card {
+  margin-top: 0.65rem;
+  padding: 0.85rem 1rem;
+}
+
+.review-analysis-card summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.review-analysis-body {
+  margin-top: 0.65rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.review-quote {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid var(--line);
+  font-size: 0.84rem;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.review-graph {
+  height: 240px;
+}
+
+.graph-stats-line {
+  flex: 1;
 }
 
 .results[data-accent="cooccurrence"] {

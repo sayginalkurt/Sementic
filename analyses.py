@@ -143,7 +143,7 @@ def dataframe_to_payload(df: pd.DataFrame) -> dict:
 def run_all_analyses_from_sentences(
     sentences: list[list[str]],
     *,
-    min_freq: int = 2,
+    min_freq: int = 0,
 ) -> tuple[list[str], dict[str, pd.DataFrame]]:
     vocab = build_vocabulary(sentences, min_freq=min_freq)
     if not vocab:
@@ -162,7 +162,7 @@ def run_all_analyses_from_sentences(
 def run_all_analyses(
     text: str,
     *,
-    min_freq: int = 2,
+    min_freq: int = 0,
     min_word_len: int = 2,
 ) -> tuple[list[str], dict[str, pd.DataFrame]]:
     sentences = tokens_by_sentence(text, min_len=min_word_len)

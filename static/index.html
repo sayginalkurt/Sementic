@@ -19,9 +19,49 @@
         <span class="version">v0.00001</span>
       </div>
       <span id="api-status" class="status" role="status" hidden></span>
+      <form id="logout-form" class="logout-form" method="post" action="/logout" hidden>
+        <button type="submit" class="btn-text">Sign out</button>
+      </form>
     </header>
 
     <main class="page">
+      <section class="block places-block" id="places-section" aria-labelledby="places-heading">
+        <h2 id="places-heading" class="section-title">Google Places</h2>
+        <p class="section-lead">
+          Select a place, load reviews (up to 5 from Google), then run Sementic analysis on each review separately.
+        </p>
+
+        <p id="places-config-msg" class="hint" hidden></p>
+
+        <div id="places-ui" hidden>
+          <label class="place-search-label" for="place-search">Search place</label>
+          <input
+            type="text"
+            id="place-search"
+            class="place-search"
+            placeholder="Restaurant, shop, address…"
+            autocomplete="off"
+          />
+          <div id="place-map" class="place-map" role="application" aria-label="Map"></div>
+          <div id="place-meta" class="place-meta" hidden></div>
+          <p id="places-loading" class="hint" hidden>Loading reviews…</p>
+          <div id="reviews-panel" class="reviews-panel" hidden>
+            <h3 class="reviews-title">Reviews <span id="reviews-count"></span></h3>
+            <p id="reviews-limit-note" class="hint" hidden></p>
+            <ul id="reviews-list" class="reviews-list"></ul>
+            <div class="places-actions">
+              <button type="button" id="analyze-reviews-btn" class="btn" disabled>
+                Analyze all reviews
+              </button>
+            </div>
+          </div>
+          <p id="places-analyze-loading" class="hint" hidden>
+            Running Sementic on each review (may take several minutes)…
+          </p>
+          <div id="review-analyses-root" class="review-analyses-root" hidden></div>
+        </div>
+      </section>
+
       <section class="block input-block">
         <form id="analyze-form">
           <textarea
@@ -39,7 +79,7 @@
             <span id="file-name" class="file-name"></span>
             <label class="freq">
               Min. frequency
-              <input type="number" id="min-freq" value="2" min="1" max="10" />
+              <input type="number" id="min-freq" value="0" min="0" max="10" />
             </label>
             <button type="submit" id="submit-btn" class="btn">Analyze</button>
           </div>
@@ -98,6 +138,7 @@
       src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
       crossorigin="anonymous"
     ></script>
+    <script src="/static/places.js" type="module"></script>
     <script src="/static/app.js" type="module"></script>
   </body>
 </html>

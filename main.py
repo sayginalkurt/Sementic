@@ -47,7 +47,7 @@ def main() -> None:
     parser.add_argument(
         "--min-freq",
         type=int,
-        default=2,
+        default=0,
         help="Kelimenin matrise girmesi için minimum frekans",
     )
     args = parser.parse_args()

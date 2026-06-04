@@ -80,7 +80,7 @@ def tokens_by_sentence(text: str, min_len: int = 2) -> list[list[str]]:
 
 def build_vocabulary(
     token_lists: Iterable[list[str]],
-    min_freq: int = 2,
+    min_freq: int = 0,
 ) -> list[str]:
     from collections import Counter
 

@@ -70,6 +70,9 @@ async function checkHealth() {
   try {
     const res = await fetch("/api/health");
     const data = await res.json();
+    if (data.auth_required) {
+      document.getElementById("logout-form")?.removeAttribute("hidden");
+    }
     if (!data.openai_configured) {
       apiStatus.hidden = false;
       apiStatus.textContent = "API key missing";
@@ -341,7 +344,7 @@ form.addEventListener("submit", async (e) => {
 
   const fd = new FormData();
   fd.append("text", text);
-  fd.append("min_freq", document.getElementById("min-freq").value || "2");
+  fd.append("min_freq", document.getElementById("min-freq").value ?? "0");
 
   setLoading(true);
   setDownloadButtonsEnabled(false);
