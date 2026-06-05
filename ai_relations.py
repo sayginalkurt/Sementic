@@ -270,13 +270,24 @@ def annotate_graphs_with_relations(
     model: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    on_progress=None,
+    progress_ctx: dict | None = None,
 ) -> dict[str, dict[str, Any]]:
+    from workflow import RELATION_STEP_BY_KIND, emit
+
     oai = client or _openai_client(api_key=api_key, base_url=base_url)
     chosen_model = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
     enriched: dict[str, dict[str, Any]] = {}
 
     for kind, graph in graphs.items():
+        step_id = RELATION_STEP_BY_KIND.get(kind, f"relations_{kind}")
         pairs = _unique_pairs_from_edges(graph.get("edges") or [])
+        emit(
+            on_progress,
+            step_id,
+            "running",
+            {**(progress_ctx or {}), "kind": kind, "pairs": len(pairs)},
+        )
         relations = infer_relations_for_pairs(
             english_text,
             pairs,
@@ -285,6 +296,12 @@ def annotate_graphs_with_relations(
             model=chosen_model,
         )
         enriched[kind] = apply_relations_to_graph(graph, relations)
+        emit(
+            on_progress,
+            step_id,
+            "done",
+            {**(progress_ctx or {}), "kind": kind, "pairs": len(pairs)},
+        )
 
     return enriched
 

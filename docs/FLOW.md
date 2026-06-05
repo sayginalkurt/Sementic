@@ -257,6 +257,44 @@ Copy `.env.example` → `.env` for local development.
 
 ---
 
+## FCM pipeline (`pipeline=fcm`)
+
+Parallel to STAT-3NET. Selected in the UI **PIPELINE → FCM** or via `pipeline=fcm` on analyze endpoints.
+
+```mermaid
+flowchart TB
+  subgraph fcm_input [Input]
+    T2[Text or review]
+  end
+
+  subgraph fcm_prep [Prep]
+    N2[Normalize and split]
+    LD[Language detect]
+    TR2[Translate if not English]
+  end
+
+  subgraph hybrid [Hybrid concepts]
+    PH[spaCy noun phrases]
+    CL[Embedding cluster]
+    MG[LLM concept merge]
+  end
+
+  subgraph fcm_core [FCM]
+    PC[Polarity context]
+    ED[Directed causal edges]
+    AM[Adjacency matrix]
+    GR[Graph render]
+  end
+
+  T2 --> N2 --> LD --> TR2 --> PH --> CL --> MG --> PC --> ED --> AM --> GR
+```
+
+**Modules:** `fcm_service.py`, `lang_detect.py`, `concept_hybrid.py`, `fcm_inference.py`, `fcm_matrix.py`
+
+**Response fields:** `pipeline`, `language`, `review_tone`, `concepts`, `edges`, `matrix`, `graph`
+
+---
+
 ## Related documents
 
 - [METHODS.md](METHODS.md) — formulas and interpretation of each matrix type  

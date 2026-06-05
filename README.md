@@ -1,6 +1,11 @@
 # Sementic Analysis Tool
 
-Thematic concept extraction (OpenAI) and three network analyses: **co-occurrence**, **semantic**, and **epistemic (ENA-style)**. Web UI with matrices, interactive graphs (PNG export), and XLSX export.
+Thematic concept extraction (OpenAI) with two parallel pipelines:
+
+- **STAT-3NET** — co-occurrence, semantic, and epistemic (ENA-style) matrices + directed graphs
+- **FCM** — hybrid NLP phrase extraction, embedding clusters, LLM concept merge, causal fuzzy cognitive map (adjacency matrix + evidence edges)
+
+Web UI with workflow trace, matrices, interactive graphs (PNG export), and XLSX export.
 
 **Version:** v0.00001
 
@@ -10,6 +15,7 @@ Thematic concept extraction (OpenAI) and three network analyses: **co-occurrence
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python -m spacy download en_core_web_sm
 cp .env.example .env   # add OPENAI_API_KEY
 uvicorn app:app --reload --port 8000
 ```
@@ -28,10 +34,11 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
    | `OPENAI_MODEL` | Optional, e.g. `gpt-4o-mini` |
 | `GOOGLE_MAPS_API_KEY` | Maps place picker (browser) |
 | `GOOGLE_PLACES_API_KEY` | Optional; server review fetch (defaults to Maps key) |
-| `APP_PASSWORD` | App login password (required on Railway; empty = no gate locally) |
+| `APP_PASSWORD` | App login password (Railway only; no gate when running locally) |
 
-4. Railway sets `PORT` automatically; the app binds to `0.0.0.0`.
-5. Generate a public domain under **Settings → Networking**.
+4. Add a build step (or one-off deploy command) for spaCy: `python -m spacy download en_core_web_sm`
+5. Railway sets `PORT` automatically; the app binds to `0.0.0.0`.
+6. Generate a public domain under **Settings → Networking**.
 
 No `.env` file is needed on Railway—use project variables only.
 
@@ -65,7 +72,11 @@ git push -u origin main
 | `graph.py` | Matrix → network graph |
 | `ai_relations.py` | AI direction & polarity on graph links |
 | `google_places.py` | Google Places review fetch |
-| `analysis_service.py` | Shared Sementic pipeline (`/api/analyze` + review batch) |
+| `analysis_service.py` | STAT-3NET pipeline (`pipeline=statistical`) |
+| `fcm_service.py` | FCM pipeline (`pipeline=fcm`) |
+| `concept_hybrid.py` | spaCy phrases + embeddings + LLM concept merge |
+| `fcm_inference.py` | Contextual polarity + causal FCM edges |
+| `lang_detect.py` | Language detection; skip translation for English |
 | `static/` | Frontend |
 
 ## CLI (no AI, local tokenization only)

@@ -3,142 +3,302 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sementic Analysis Tool</title>
+    <title>SEMENTIC — Lab PoC</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Sora:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body>
-    <header class="site-header">
-      <div class="brand">
-        <h1>Sementic Analysis Tool</h1>
-        <span class="version">v0.00001</span>
+  <body class="lab">
+    <div class="poc-banner" role="note">
+      <span class="poc-tag">PoC</span>
+      PROOF OF CONCEPT — EXPERIMENTAL LAB BUILD — NOT FOR PRODUCTION
+    </div>
+
+    <header class="lab-header">
+      <div class="lab-id">
+        <span class="lab-tag">LAB</span>
+        <div class="lab-titles">
+          <h1>SEMENTIC ANALYSIS</h1>
+          <p class="lab-sub">Thematic network pipeline · concept extraction · co-occurrence · semantic · epistemic</p>
+        </div>
+        <span class="build-id">BUILD 0.00001</span>
       </div>
-      <span id="api-status" class="status" role="status" hidden></span>
-      <form id="logout-form" class="logout-form" method="post" action="/logout" hidden>
-        <button type="submit" class="btn-text">Sign out</button>
-      </form>
+      <div class="lab-status-bar">
+        <span class="status-led ok" id="sys-led" title="System">SYS</span>
+        <span id="api-status" class="status-readout" role="status" hidden></span>
+        <form id="logout-form" class="logout-form" method="post" action="/logout" hidden>
+          <button type="submit" class="btn-text">[ LOGOUT ]</button>
+        </form>
+      </div>
     </header>
 
-    <main class="page">
-      <section class="block places-block" id="places-section" aria-labelledby="places-heading">
-        <h2 id="places-heading" class="section-title">Google Places</h2>
-        <p class="section-lead">
-          Select a place, load reviews (up to 5 from Google), then run Sementic analysis on each review separately.
+    <main class="lab-bench">
+      <nav class="channel-select" role="tablist" aria-label="Input channel">
+        <span class="channel-label">INPUT CHANNEL</span>
+        <div class="channel-tabs">
+          <button
+            type="button"
+            class="source-tab on"
+            role="tab"
+            id="tab-freetext"
+            aria-selected="true"
+            aria-controls="panel-freetext"
+            data-source="freetext"
+          >
+            <span class="ch-id">CH-A</span>
+            Free text
+          </button>
+          <button
+            type="button"
+            class="source-tab"
+            role="tab"
+            id="tab-places"
+            aria-selected="false"
+            aria-controls="panel-places"
+            data-source="places"
+          >
+            <span class="ch-id">CH-B</span>
+            Google Places
+          </button>
+        </div>
+      </nav>
+
+      <nav class="pipeline-select" role="tablist" aria-label="Pipeline mode">
+        <span class="channel-label">PIPELINE</span>
+        <div class="channel-tabs">
+          <button
+            type="button"
+            class="pipeline-tab on"
+            role="tab"
+            id="pipeline-statistical"
+            data-pipeline="statistical"
+            aria-selected="true"
+          >
+            <span class="ch-id">S1</span>
+            STAT-3NET
+          </button>
+          <button
+            type="button"
+            class="pipeline-tab"
+            role="tab"
+            id="pipeline-fcm"
+            data-pipeline="fcm"
+            aria-selected="false"
+          >
+            <span class="ch-id">S2</span>
+            FCM
+          </button>
+        </div>
+      </nav>
+
+      <aside id="workflow-panel" class="lab-module workflow-panel" hidden>
+        <header class="module-head workflow-head">
+          <span class="mod-id">WF</span>
+          <span class="mod-name">PIPELINE TRACE</span>
+          <span id="workflow-status" class="workflow-status">IDLE</span>
+        </header>
+        <div class="module-body workflow-body">
+          <ol id="workflow-steps" class="workflow-steps"></ol>
+          <div id="workflow-log" class="workflow-log" aria-live="polite"></div>
+        </div>
+      </aside>
+
+      <!-- ── CH-A: Free text ── -->
+      <section
+        id="panel-freetext"
+        class="source-panel on"
+        role="tabpanel"
+        aria-labelledby="tab-freetext"
+      >
+        <p class="protocol-note" id="protocol-note-freetext">
+          PROTOCOL A · STAT-3NET — Ingest text → translate → lemma concepts → co/sem/ep matrices → directed graphs
         </p>
 
-        <p id="places-config-msg" class="hint" hidden></p>
+        <div class="lab-module block input-block" data-mod="01">
+          <header class="module-head">
+            <span class="mod-id">MOD-01</span>
+            <span class="mod-name">TEXT INPUT BUFFER</span>
+          </header>
+          <div class="module-body">
+            <form id="analyze-form">
+              <label class="field-label" for="text-input">RAW TEXT</label>
+              <textarea
+                id="text-input"
+                rows="14"
+                placeholder="&gt; paste corpus here…"
+                spellcheck="false"
+              ></textarea>
 
-        <div id="places-ui" hidden>
-          <label class="place-search-label" for="place-search">Search place</label>
-          <input
-            type="text"
-            id="place-search"
-            class="place-search"
-            placeholder="Restaurant, shop, address…"
-            autocomplete="off"
-          />
-          <div id="place-map" class="place-map" role="application" aria-label="Map"></div>
-          <div id="place-meta" class="place-meta" hidden></div>
-          <p id="places-loading" class="hint" hidden>Loading reviews…</p>
-          <div id="reviews-panel" class="reviews-panel" hidden>
-            <h3 class="reviews-title">Reviews <span id="reviews-count"></span></h3>
-            <p id="reviews-limit-note" class="hint" hidden></p>
-            <ul id="reviews-list" class="reviews-list"></ul>
-            <div class="places-actions">
-              <button type="button" id="analyze-reviews-btn" class="btn" disabled>
-                Analyze all reviews
-              </button>
+              <div class="toolbar">
+                <label class="file-label">
+                  <span class="field-label inline">FILE IN</span>
+                  <input type="file" id="file-input" accept=".txt,.md,text/plain" />
+                </label>
+                <span id="file-name" class="file-name"></span>
+                <label class="freq" id="min-freq-wrap">
+                  <span class="field-label inline">MIN_FREQ</span>
+                  <input type="number" id="min-freq" value="0" min="0" max="10" />
+                </label>
+                <input type="hidden" id="pipeline-input" name="pipeline" value="statistical" />
+                <button type="submit" id="submit-btn" class="btn btn-run">▶ RUN PIPELINE</button>
+              </div>
+            </form>
+            <p id="error-msg" class="error" hidden></p>
+          </div>
+        </div>
+
+        <section id="results" class="lab-module block results" data-mod="02" data-accent="cooccurrence" hidden>
+          <header class="module-head">
+            <span class="mod-id">MOD-02</span>
+            <span class="mod-name">OUTPUT — NETWORK ANALYSIS</span>
+          </header>
+          <div class="module-body">
+            <p class="meta readout">
+              <span class="readout-key">SENTENCES</span>
+              <span id="stat-sentences">—</span>
+              <span class="readout-sep">│</span>
+              <span class="readout-key">CONCEPTS</span>
+              <span id="stat-vocab">—</span>
+            </p>
+
+            <details class="fold">
+              <summary>[ EXPAND ] Concept dump</summary>
+              <p class="fold-label">EN translation</p>
+              <div id="english-by-sentence" class="concept-lines muted-lines dump"></div>
+              <p class="fold-label">Concept codes</p>
+              <div id="concepts-by-sentence" class="concept-lines dump"></div>
+              <table class="data-table" id="freq-table">
+                <thead>
+                  <tr><th>concept</th><th>n</th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </details>
+
+            <div class="tabs" role="tablist">
+              <span class="tabs-label">METHOD</span>
+              <button type="button" class="tab on" data-tab="cooccurrence">Co-occurrence</button>
+              <button type="button" class="tab" data-tab="semantic">Semantic</button>
+              <button type="button" class="tab" data-tab="epistemic">Epistemic</button>
+            </div>
+
+            <div id="method-note" class="method-note" aria-live="polite"></div>
+
+            <div class="output-head">
+              <span id="graph-stats" class="hint readout"></span>
+              <div class="output-actions">
+                <button type="button" id="download-graph-btn" class="btn-text" disabled>
+                  [ PNG ]
+                </button>
+                <button type="button" id="download-btn" class="btn-text" disabled>
+                  [ XLSX ]
+                </button>
+              </div>
+            </div>
+
+            <div class="viz-frame">
+              <span class="viz-label">GRAPH VIEWPORT</span>
+              <div id="graph-network" class="graph" aria-label="Network graph"></div>
+            </div>
+            <div class="viz-frame">
+              <span class="viz-label">MATRIX DUMP</span>
+              <div class="matrix-scroll" id="matrix-table-wrap"></div>
             </div>
           </div>
-          <p id="places-analyze-loading" class="hint" hidden>
-            Running Sementic on each review (may take several minutes)…
-          </p>
-          <div id="review-analyses-root" class="review-analyses-root" hidden></div>
-        </div>
+        </section>
+
+        <section id="results-fcm" class="lab-module block results-fcm" data-mod="03" hidden>
+          <header class="module-head">
+            <span class="mod-id">MOD-03</span>
+            <span class="mod-name">OUTPUT — FCM ANALYSIS</span>
+          </header>
+          <div class="module-body" id="results-fcm-body"></div>
+        </section>
       </section>
 
-      <section class="block input-block">
-        <form id="analyze-form">
-          <textarea
-            id="text-input"
-            rows="14"
-            placeholder="Paste your text here"
-            spellcheck="false"
-          ></textarea>
-
-          <div class="toolbar">
-            <label class="file-label">
-              <input type="file" id="file-input" accept=".txt,.md,text/plain" />
-              File
-            </label>
-            <span id="file-name" class="file-name"></span>
-            <label class="freq">
-              Min. frequency
-              <input type="number" id="min-freq" value="0" min="0" max="10" />
-            </label>
-            <button type="submit" id="submit-btn" class="btn">Analyze</button>
-          </div>
-        </form>
-        <p id="error-msg" class="error" hidden></p>
-      </section>
-
-      <section id="results" class="block results" data-accent="cooccurrence" hidden>
-        <p class="meta">
-          <span id="stat-sentences">—</span> sentences ·
-          <span id="stat-vocab">—</span> concepts
+      <!-- ── CH-B: Google Places ── -->
+      <section
+        id="panel-places"
+        class="source-panel"
+        role="tabpanel"
+        aria-labelledby="tab-places"
+        hidden
+      >
+        <p class="protocol-note" id="protocol-note-places">
+          PROTOCOL B · STAT-3NET — Geo lookup → review fetch → per-review statistical pipeline
         </p>
 
-        <details class="fold">
-          <summary>Concepts</summary>
-          <p class="fold-label">English translation</p>
-          <div id="english-by-sentence" class="concept-lines muted-lines"></div>
-          <p class="fold-label">Concept codes</p>
-          <div id="concepts-by-sentence" class="concept-lines"></div>
-          <table class="data-table" id="freq-table">
-            <thead>
-              <tr><th>Concept</th><th>n</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </details>
+        <div class="lab-module block places-block" id="places-section" data-mod="10">
+          <header class="module-head">
+            <span class="mod-id">MOD-10</span>
+            <span class="mod-name">GEO + REVIEW SOURCE</span>
+          </header>
+          <div class="module-body">
+            <p id="places-config-msg" class="hint sys-msg" hidden></p>
 
-        <div class="tabs" role="tablist">
-          <button type="button" class="tab on" data-tab="cooccurrence">Co-occurrence</button>
-          <button type="button" class="tab" data-tab="semantic">Semantic</button>
-          <button type="button" class="tab" data-tab="epistemic">Epistemic</button>
-        </div>
+            <div id="places-ui" hidden>
+              <label class="field-label" for="place-search">PLACE QUERY</label>
+              <input
+                type="text"
+                id="place-search"
+                class="place-search"
+                placeholder="&gt; restaurant, address, POI…"
+                autocomplete="off"
+              />
+              <div class="viz-frame">
+                <span class="viz-label">MAP VIEWPORT</span>
+                <div id="place-map" class="place-map" role="application" aria-label="Map"></div>
+              </div>
+              <div id="place-meta" class="place-meta readout" hidden></div>
+              <p id="places-loading" class="hint sys-msg" hidden>⟳ FETCHING REVIEWS…</p>
 
-        <div id="method-note" class="method-note" aria-live="polite"></div>
-
-        <div class="output-head">
-          <span id="graph-stats" class="hint"></span>
-          <div class="output-actions">
-            <button type="button" id="download-graph-btn" class="btn-text" disabled>
-              Download graph
-            </button>
-            <button type="button" id="download-btn" class="btn-text" disabled>
-              Download XLSX
-            </button>
+              <div id="reviews-panel" class="reviews-panel" hidden>
+                <h3 class="reviews-title">
+                  <span class="field-label inline">REVIEW BUFFER</span>
+                  <span id="reviews-count"></span>
+                </h3>
+                <p id="reviews-limit-note" class="hint sys-msg" hidden></p>
+                <ul id="reviews-list" class="reviews-list dump"></ul>
+                <div class="places-actions">
+                  <label class="freq" id="places-min-freq-wrap">
+                    <span class="field-label inline">MIN_FREQ</span>
+                    <input type="number" id="places-min-freq" value="0" min="0" max="10" />
+                  </label>
+                  <button type="button" id="analyze-reviews-btn" class="btn btn-run" disabled>
+                    ▶ RUN BATCH (per review)
+                  </button>
+                </div>
+              </div>
+              <p id="places-analyze-loading" class="hint sys-msg" hidden>
+                ⟳ PIPELINE RUNNING — one execution per review…
+              </p>
+              <div id="review-analyses-root" class="review-analyses-root" hidden></div>
+            </div>
           </div>
         </div>
-
-        <div id="graph-network" class="graph" aria-label="Network graph"></div>
-        <div class="matrix-scroll" id="matrix-table-wrap"></div>
       </section>
     </main>
 
-    <div id="loading" class="loading" hidden aria-live="polite">Working…</div>
+    <footer class="lab-footer">
+      <span>OWL_LAB SEMENTIC PoC</span>
+      <span class="footer-sep">·</span>
+      <span>Experimental — results not validated for research publication</span>
+    </footer>
+
+    <div id="loading" class="loading" hidden aria-live="polite">
+      <span class="loading-tag">EXEC</span>
+      PIPELINE RUNNING…
+    </div>
 
     <script
       src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
       crossorigin="anonymous"
     ></script>
-    <script src="/static/places.js" type="module"></script>
     <script src="/static/app.js" type="module"></script>
+    <script src="/static/places.js" type="module"></script>
   </body>
 </html>

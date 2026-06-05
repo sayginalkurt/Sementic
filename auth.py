@@ -1,4 +1,4 @@
-"""Optional app-wide password gate (APP_PASSWORD env var)."""
+"""App-wide password gate on Railway only (APP_PASSWORD env var)."""
 
 from __future__ import annotations
 
@@ -17,12 +17,16 @@ LOGIN_PATH = "/login"
 PUBLIC_PREFIXES = ("/login", "/api/health")
 
 
+def _is_railway() -> bool:
+    return bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
+
+
 def app_password() -> str:
     return (os.environ.get("APP_PASSWORD") or "").strip()
 
 
 def auth_enabled() -> bool:
-    return bool(app_password())
+    return _is_railway() and bool(app_password())
 
 
 def _session_token() -> str:
@@ -76,11 +80,11 @@ def login_page_html(*, error: str | None = None) -> str:
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sign in — Sementic</title>
+    <title>ACCESS — Sementic Lab PoC</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,600&family=Sora:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -89,72 +93,103 @@ def login_page_html(*, error: str | None = None) -> str:
         min-height: 100vh;
         display: grid;
         place-items: center;
-        font-family: "Sora", system-ui, sans-serif;
-        background: #f3f2ef;
-        color: #1a1917;
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        background: #e4e2db;
+        background-image:
+          linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px);
+        background-size: 24px 24px;
+        color: #121110;
+      }}
+      .banner {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 0.45rem 1rem;
+        background: repeating-linear-gradient(-45deg,#1a1917,#1a1917 8px,#e8a020 8px,#e8a020 16px);
+        color: #fff;
+        font: 600 0.68rem/1 "IBM Plex Mono", monospace;
+        letter-spacing: 0.12em;
+        text-align: center;
+        text-transform: uppercase;
+        border-bottom: 2px solid #1a1917;
       }}
       .card {{
         width: min(22rem, 92vw);
-        padding: 1.5rem 1.35rem;
-        background: #fffefb;
-        border: 1px solid #ddd9d0;
-        box-shadow: 0 8px 24px rgba(26, 25, 23, 0.06);
+        margin-top: 2rem;
+        border: 2px solid #1a1917;
+        background: #f0eeea;
+      }}
+      .head {{
+        padding: 0.4rem 0.75rem;
+        background: #1a1917;
+        color: #f0eeea;
+        font: 600 0.72rem/1 "IBM Plex Mono", monospace;
+        letter-spacing: 0.1em;
+      }}
+      .body {{
+        padding: 1rem 1.1rem 1.15rem;
       }}
       h1 {{
         margin: 0 0 0.35rem;
-        font-family: "Newsreader", Georgia, serif;
-        font-size: 1.35rem;
-        font-weight: 600;
+        font: 600 1rem/1.2 "IBM Plex Mono", monospace;
+        letter-spacing: 0.06em;
       }}
       p {{
         margin: 0 0 1rem;
-        font-size: 0.86rem;
-        color: #64615a;
+        font-size: 0.8rem;
+        color: #5a5854;
       }}
       label {{
         display: block;
-        font-size: 0.78rem;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: #64615a;
+        font: 600 0.68rem/1 "IBM Plex Mono", monospace;
+        letter-spacing: 0.1em;
+        color: #5a5854;
         margin-bottom: 0.35rem;
       }}
       input[type="password"] {{
         width: 100%;
         box-sizing: border-box;
-        padding: 0.55rem 0.65rem;
-        border: 1px solid #ddd9d0;
-        font: inherit;
+        padding: 0.5rem 0.65rem;
+        border: 1px solid #1a1917;
+        background: #faf9f6;
+        font: 0.85rem/1 "IBM Plex Mono", monospace;
         margin-bottom: 0.85rem;
       }}
       button {{
         width: 100%;
-        padding: 0.55rem 0.75rem;
-        border: none;
-        background: #2a7d72;
-        color: #fff;
-        font: 600 0.9rem/1 "Sora", system-ui, sans-serif;
+        padding: 0.5rem 0.75rem;
+        border: 2px solid #1a6b42;
+        background: #1a6b42;
+        color: #f0eeea;
+        font: 600 0.75rem/1 "IBM Plex Mono", monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
         cursor: pointer;
       }}
       button:hover {{
-        background: #1f6359;
+        filter: brightness(1.08);
       }}
       .error {{
-        color: #b44040;
-        font-size: 0.84rem;
+        color: #c42b2b;
+        font: 500 0.78rem/1.4 "IBM Plex Mono", monospace;
         margin: 0 0 0.75rem;
       }}
     </style>
   </head>
   <body>
+    <div class="banner">PoC — Lab access gate</div>
     <form class="card" method="post" action="{LOGIN_PATH}">
-      <h1>Sementic Analysis Tool</h1>
-      <p>Enter the app password to continue.</p>
-      {err}
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
-      <button type="submit">Sign in</button>
+      <div class="head">MOD-00 · ACCESS CONTROL</div>
+      <div class="body">
+        <h1>SEMENTIC LAB</h1>
+        <p>Enter deployment password to continue.</p>
+        {err}
+        <label for="password">ACCESS KEY</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+        <button type="submit">▶ AUTHENTICATE</button>
+      </div>
     </form>
   </body>
 </html>"""

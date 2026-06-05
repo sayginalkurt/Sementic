@@ -244,6 +244,8 @@ def translate_sentences_to_english(
     model: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    on_progress=None,
+    progress_ctx: dict | None = None,
 ) -> list[str]:
     """Translate source sentences to English, preserving count and order."""
     if not sentences:
@@ -252,8 +254,12 @@ def translate_sentences_to_english(
     chosen_model = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
     oai = client or _openai_client(api_key=api_key, base_url=base_url)
 
+    batches = _translation_batches(sentences)
     english: list[str] = []
-    for batch in _translation_batches(sentences):
+    for i, batch in enumerate(batches):
+        if on_progress:
+            detail = {"batch": i + 1, "batches": len(batches), **(progress_ctx or {})}
+            on_progress("translate", "running", detail)
         english.extend(_translate_batch(oai, chosen_model, batch))
 
     if len(english) != len(sentences):

@@ -1,3 +1,17 @@
+import { stepsForPipeline } from "./workflow-steps.js";
+import { createWorkflowTracker } from "./workflow-tracker.js";
+import { consumeNdjsonStream } from "./stream-client.js";
+import { renderFcmResults } from "./fcm-results.js";
+
+const SOURCE_KEY = "sementic-source";
+const PIPELINE_KEY = "sementic-pipeline";
+
+const workflowTracker = createWorkflowTracker(document.getElementById("workflow-panel"));
+window.sementicWorkflow = workflowTracker;
+
+const sourceTabs = document.querySelectorAll(".source-tab");
+const sourcePanels = document.querySelectorAll(".source-panel");
+
 const form = document.getElementById("analyze-form");
 const textInput = document.getElementById("text-input");
 const fileInput = document.getElementById("file-input");
@@ -5,6 +19,13 @@ const fileNameEl = document.getElementById("file-name");
 const errorMsg = document.getElementById("error-msg");
 const loading = document.getElementById("loading");
 const results = document.getElementById("results");
+const resultsFcm = document.getElementById("results-fcm");
+const resultsFcmBody = document.getElementById("results-fcm-body");
+const pipelineInput = document.getElementById("pipeline-input");
+const minFreqWrap = document.getElementById("min-freq-wrap");
+const protocolNoteFreetext = document.getElementById("protocol-note-freetext");
+const protocolNotePlaces = document.getElementById("protocol-note-places");
+const pipelineTabs = document.querySelectorAll(".pipeline-tab");
 const submitBtn = document.getElementById("submit-btn");
 const apiStatus = document.getElementById("api-status");
 const matrixWrap = document.getElementById("matrix-table-wrap");
@@ -16,6 +37,24 @@ const downloadGraphBtn = document.getElementById("download-graph-btn");
 let networkInstance = null;
 let analysisResult = null;
 let activeTab = "cooccurrence";
+let currentPipeline = "statistical";
+
+const PROTOCOL_NOTES = {
+  freetext: {
+    statistical:
+      "PROTOCOL A · STAT-3NET — Ingest text → translate → lemma concepts → co/sem/ep matrices → directed graphs",
+    fcm:
+      "PROTOCOL A · FCM — Lang detect → hybrid concept merge → contextual polarity → causal edges → adjacency matrix",
+  },
+  places: {
+    statistical:
+      "PROTOCOL B · STAT-3NET — Geo lookup → review fetch → per-review statistical pipeline",
+    fcm:
+      "PROTOCOL B · FCM — Geo lookup → review fetch → per-review FCM causal map",
+  },
+};
+
+window.getSementicPipeline = () => currentPipeline;
 
 const TAB_ACCENT = {
   cooccurrence: { node: "#2a7d72", edge: "#8ab5ad", hi: "#e8f2f0" },
@@ -67,6 +106,7 @@ function setDownloadButtonsEnabled(on) {
 }
 
 async function checkHealth() {
+  const sysLed = document.getElementById("sys-led");
   try {
     const res = await fetch("/api/health");
     const data = await res.json();
@@ -74,12 +114,14 @@ async function checkHealth() {
       document.getElementById("logout-form")?.removeAttribute("hidden");
     }
     if (!data.openai_configured) {
+      sysLed?.classList.replace("ok", "err");
       apiStatus.hidden = false;
-      apiStatus.textContent = "API key missing";
+      apiStatus.textContent = "ERR: OPENAI_KEY MISSING";
     }
   } catch {
+    sysLed?.classList.replace("ok", "err");
     apiStatus.hidden = false;
-    apiStatus.textContent = "Server unavailable";
+    apiStatus.textContent = "ERR: SERVER OFFLINE";
   }
 }
 
@@ -187,7 +229,7 @@ function renderGraph(tabKey) {
       label: n.label,
       value: n.value,
       title: n.title,
-      font: { color: "#1a1917", face: "Sora", size: 13 },
+      font: { color: "#121110", face: "IBM Plex Mono", size: 12 },
       color: {
         background: "#fff",
         border: accent.node,
@@ -345,27 +387,114 @@ form.addEventListener("submit", async (e) => {
   const fd = new FormData();
   fd.append("text", text);
   fd.append("min_freq", document.getElementById("min-freq").value ?? "0");
+  fd.append("pipeline", currentPipeline);
 
   setLoading(true);
   setDownloadButtonsEnabled(false);
+  results.hidden = true;
+  resultsFcm.hidden = true;
+  workflowTracker?.reset(stepsForPipeline(currentPipeline));
   try {
-    const res = await fetch("/api/analyze", { method: "POST", body: fd });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || "Analysis failed");
+    const res = await fetch("/api/analyze/stream", { method: "POST", body: fd });
+    const data = await consumeNdjsonStream(res, (ev) => workflowTracker?.handleEvent(ev));
 
     analysisResult = data;
-    document.getElementById("stat-sentences").textContent = data.sentence_count;
-    document.getElementById("stat-vocab").textContent = data.vocabulary_size;
-    renderConcepts(data);
-    renderMatrix(activeTab);
-    results.hidden = false;
-    setDownloadButtonsEnabled(true);
-    results.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (data.pipeline === "fcm") {
+      renderFcmResults(data, resultsFcmBody);
+      resultsFcm.hidden = false;
+      resultsFcm.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      document.getElementById("stat-sentences").textContent = data.sentence_count;
+      document.getElementById("stat-vocab").textContent = data.vocabulary_size;
+      renderConcepts(data);
+      renderMatrix(activeTab);
+      results.hidden = false;
+      setDownloadButtonsEnabled(true);
+      results.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   } catch (err) {
+    workflowTracker?.setStatus("ERROR");
     showError(err.message || String(err));
   } finally {
     setLoading(false);
   }
 });
+
+function setSource(source) {
+  const valid = source === "places" ? "places" : "freetext";
+  sourceTabs.forEach((tab) => {
+    const on = tab.dataset.source === valid;
+    tab.classList.toggle("on", on);
+    tab.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  sourcePanels.forEach((panel) => {
+    const on = panel.id === `panel-${valid}`;
+    panel.classList.toggle("on", on);
+    panel.hidden = !on;
+  });
+  try {
+    localStorage.setItem(SOURCE_KEY, valid);
+  } catch {
+    /* ignore */
+  }
+  if (valid === "places") {
+    window.dispatchEvent(new CustomEvent("sementic:places-panel-shown"));
+  }
+}
+
+sourceTabs.forEach((tab) => {
+  tab.addEventListener("click", () => setSource(tab.dataset.source));
+});
+
+const savedSource = (() => {
+  try {
+    return localStorage.getItem(SOURCE_KEY);
+  } catch {
+    return null;
+  }
+})();
+setSource(savedSource === "places" ? "places" : "freetext");
+
+function updatePipelineUi() {
+  const isFcm = currentPipeline === "fcm";
+  minFreqWrap?.classList.toggle("hidden-stat-only", isFcm);
+  document.getElementById("places-min-freq-wrap")?.classList.toggle("hidden-stat-only", isFcm);
+  if (pipelineInput) pipelineInput.value = currentPipeline;
+  if (protocolNoteFreetext) {
+    protocolNoteFreetext.textContent = PROTOCOL_NOTES.freetext[currentPipeline];
+  }
+  if (protocolNotePlaces) {
+    protocolNotePlaces.textContent = PROTOCOL_NOTES.places[currentPipeline];
+  }
+}
+
+function setPipeline(mode) {
+  currentPipeline = mode === "fcm" ? "fcm" : "statistical";
+  pipelineTabs.forEach((tab) => {
+    const on = tab.dataset.pipeline === currentPipeline;
+    tab.classList.toggle("on", on);
+    tab.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  try {
+    localStorage.setItem(PIPELINE_KEY, currentPipeline);
+  } catch {
+    /* ignore */
+  }
+  updatePipelineUi();
+  window.dispatchEvent(new CustomEvent("sementic:pipeline-changed", { detail: currentPipeline }));
+}
+
+pipelineTabs.forEach((tab) => {
+  tab.addEventListener("click", () => setPipeline(tab.dataset.pipeline));
+});
+
+const savedPipeline = (() => {
+  try {
+    return localStorage.getItem(PIPELINE_KEY);
+  } catch {
+    return null;
+  }
+})();
+setPipeline(savedPipeline === "fcm" ? "fcm" : "statistical");
 
 checkHealth();

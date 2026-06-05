@@ -73,3 +73,34 @@ Text (any language) → English translation (per sentence)
      → AI direction (a→b, b→a, a↔b) + polarity (±) from English text
      → directed signed matrices + network graphs + XLSX export
 ```
+
+---
+
+## FCM (Fuzzy Cognitive Map) — `pipeline=fcm`
+
+**Question:** What causal influences exist between higher-level thematic concepts?
+
+**Procedure:**
+
+1. **Language detect** — English text skips translation; other languages are translated first.
+2. **Phrase extract** — spaCy noun phrases per sentence.
+3. **Phrase cluster** — OpenAI embeddings + agglomerative clustering.
+4. **Concept merge** — LLM groups phrases into higher-level concept labels.
+5. **Polarity context** — review tone + per-concept valence (ambivalence allowed).
+6. **FCM edges** — LLM infers directed causal links with evidence sentences.
+
+**Edge weights (PoC scale):**
+
+| Weight | Meaning |
+|--------|---------|
+| +2 | Strong positive influence |
+| +1 | Positive influence |
+| 0 | No direct relation (omitted from graph) |
+| −1 | Negative influence |
+| −2 | Strong negative influence |
+
+**Strength labels:** `weak` / `medium` → ±1; `strong` → ±2.
+
+**Matrix:** square adjacency matrix; rows = source concepts, columns = target concepts; cell = signed weight.
+
+**Interpretation:** discourse-level causal map—not co-occurrence counts. Analyst notes and evidence sentences are shown in the UI for transparency.

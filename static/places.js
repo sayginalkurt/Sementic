@@ -3,6 +3,10 @@
  */
 
 import { renderReviewAnalyses, clearReviewAnalyses } from "./review-analyses.js";
+import { consumeNdjsonStream } from "./stream-client.js";
+import { placesBatchStepsForPipeline } from "./workflow-steps.js";
+
+const FETCH_STEP = [{ id: "place_fetch", num: "P1", label: "FETCH REVIEWS" }];
 
 const placesUi = document.getElementById("places-ui");
 const placesConfigMsg = document.getElementById("places-config-msg");
@@ -23,6 +27,46 @@ let lastPlaceData = null;
 let marker = null;
 let autocomplete = null;
 let selectedPlaceId = null;
+let mapsBootstrapped = false;
+let mapResizeObserver = null;
+
+function isPlacesPanelVisible() {
+  const panel = document.getElementById("panel-places");
+  return Boolean(panel && !panel.hidden && panel.classList.contains("on"));
+}
+
+function refreshMap() {
+  if (!map || !window.google?.maps?.event) return;
+  google.maps.event.trigger(map, "resize");
+  const pos = marker?.getPosition?.();
+  if (pos) {
+    map.panTo(pos);
+  }
+}
+
+function initMapOnce() {
+  if (map) return;
+  initMap();
+  initAutocomplete();
+  refreshMap();
+}
+
+function setupMapResizeObserver() {
+  if (!placeMapEl || mapResizeObserver || !window.ResizeObserver) return;
+  mapResizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) {
+        if (!map && mapsBootstrapped && window.google?.maps) {
+          initMapOnce();
+        } else {
+          refreshMap();
+        }
+      }
+    }
+  });
+  mapResizeObserver.observe(placeMapEl);
+}
 
 function showPlacesMessage(text, isError = false) {
   placesConfigMsg.hidden = !text;
@@ -110,15 +154,23 @@ async function fetchReviews(placeId) {
   analyzeReviewsBtn.disabled = true;
   placesLoading.hidden = false;
 
+  const wf = window.sementicWorkflow;
+  wf?.reset(FETCH_STEP);
+  wf?.updateStep("place_fetch", "running", { place_id: placeId });
+
   try {
     const res = await fetch(`/api/places/${encodeURIComponent(placeId)}/reviews`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || "Failed to load reviews");
 
     lastPlaceData = data;
+    wf?.updateStep("place_fetch", "done", { reviews: (data.reviews || []).length });
+    wf?.setStatus("REVIEWS LOADED");
     renderReviews(data);
     analyzeReviewsBtn.disabled = !(data.reviews && data.reviews.length);
   } catch (err) {
+    wf?.updateStep("place_fetch", "error", { reason: err.message });
+    wf?.setStatus("FETCH ERROR");
     showPlacesMessage(err.message || String(err), true);
   } finally {
     placesLoading.hidden = true;
@@ -174,20 +226,26 @@ analyzeReviewsBtn.addEventListener("click", async () => {
   analyzeReviewsBtn.disabled = true;
   placesAnalyzeLoading.hidden = false;
 
+  const wf = window.sementicWorkflow;
+  const pipeline = window.getSementicPipeline?.() || "statistical";
   const fd = new FormData();
-  fd.append("min_freq", document.getElementById("min-freq")?.value ?? "0");
+  fd.append("min_freq", document.getElementById("places-min-freq")?.value ?? "0");
+  fd.append("pipeline", pipeline);
+
+  wf?.reset(placesBatchStepsForPipeline(pipeline));
 
   try {
     const res = await fetch(
-      `/api/places/${encodeURIComponent(selectedPlaceId)}/analyze-reviews`,
+      `/api/places/${encodeURIComponent(selectedPlaceId)}/analyze-reviews/stream`,
       { method: "POST", body: fd }
     );
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || "Review analysis failed");
+    const data = await consumeNdjsonStream(res, (ev) => wf?.handleEvent(ev));
 
     renderReviewAnalyses(data, reviewAnalysesRoot);
     reviewAnalysesRoot.scrollIntoView({ behavior: "smooth", block: "start" });
+    onPlacesPanelActive();
   } catch (err) {
+    wf?.setStatus("BATCH ERROR");
     showPlacesMessage(err.message || String(err), true);
   } finally {
     placesAnalyzeLoading.hidden = true;
@@ -217,11 +275,28 @@ async function bootstrap() {
 
     await loadGoogleMaps(cfg.maps_api_key);
     placesUi.hidden = false;
-    initMap();
-    initAutocomplete();
+    mapsBootstrapped = true;
+    setupMapResizeObserver();
+    if (isPlacesPanelVisible()) {
+      initMapOnce();
+    }
   } catch (err) {
     showPlacesMessage(err.message || String(err), true);
   }
 }
+
+function onPlacesPanelActive() {
+  if (!mapsBootstrapped) return;
+  initMapOnce();
+  requestAnimationFrame(() => requestAnimationFrame(refreshMap));
+}
+
+window.addEventListener("sementic:places-panel-shown", onPlacesPanelActive);
+window.addEventListener("sementic:pipeline-changed", () => {
+  if (isPlacesPanelVisible()) onPlacesPanelActive();
+});
+window.addEventListener("sementic:layout-changed", () => {
+  if (isPlacesPanelVisible()) onPlacesPanelActive();
+});
 
 bootstrap();

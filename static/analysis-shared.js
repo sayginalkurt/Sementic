@@ -97,7 +97,7 @@ export function mountNetwork(container, graph, tabKey) {
       label: n.label,
       value: n.value,
       title: n.title,
-      font: { color: "#1a1917", face: "Sora", size: 12 },
+      font: { color: "#121110", face: "IBM Plex Mono", size: 11 },
       color: {
         background: "#fff",
         border: accent.node,

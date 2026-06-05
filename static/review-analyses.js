@@ -10,15 +10,17 @@ import {
   mountNetwork,
   downloadMatrixXlsx,
 } from "./analysis-shared.js";
+import { destroyFcmNetworks, renderFcmCard } from "./fcm-results.js";
 
 const networkByCard = new Map();
 
 function destroyCardNetworks() {
   networkByCard.forEach((net) => net?.destroy?.());
   networkByCard.clear();
+  destroyFcmNetworks();
 }
 
-function renderCardAnalysis(cardEl, analysis, reviewIndex) {
+function renderCardAnalysis(cardEl, analysis, reviewIndex, detailsEl = null) {
   const activeTab = "cooccurrence";
   cardEl.dataset.accent = activeTab;
 
@@ -129,7 +131,14 @@ function renderCardAnalysis(cardEl, analysis, reviewIndex) {
     }
   });
 
+  if (detailsEl) {
+    detailsEl.addEventListener("toggle", () => {
+      if (detailsEl.open) renderTab(currentTab);
+    });
+  }
+
   renderTab(activeTab);
+  return () => renderTab(currentTab);
 }
 
 export function renderReviewAnalyses(payload, rootEl) {
@@ -141,17 +150,23 @@ export function renderReviewAnalyses(payload, rootEl) {
   summary.className = "hint review-analyses-summary";
   const n = payload.analyzed_count ?? 0;
   const s = payload.skipped_count ?? 0;
-  summary.textContent = `Analyzed ${n} review(s)${s ? `, skipped ${s}` : ""}. Google returns at most 5 reviews per place.`;
+  const pipe = payload.pipeline === "fcm" ? "FCM" : "STAT-3NET";
+  summary.textContent = `BATCH COMPLETE · ${pipe} — ${n} executed${s ? ` · ${s} skipped` : ""} · Google API max 5 reviews/place`;
   rootEl.appendChild(summary);
+
+  let firstSuccessOpened = false;
 
   (payload.analyses || []).forEach((item) => {
     const details = document.createElement("details");
-    details.className = "review-analysis-card block";
+    details.className = "review-analysis-card lab-module";
 
     const review = item.review || {};
     const stars = review.rating != null ? `${review.rating}★` : "";
     const author = review.author || "Anonymous";
-    const title = `Review ${item.review_index + 1}: ${author}${stars ? ` · ${stars}` : ""}`;
+    const isFcm =
+      payload.pipeline === "fcm" || item.analysis?.pipeline === "fcm";
+    const pipeTag = isFcm ? " · FCM" : "";
+    const title = `Review ${item.review_index + 1}: ${author}${stars ? ` · ${stars}` : ""}${pipeTag}`;
 
     const summaryEl = document.createElement("summary");
     summaryEl.textContent = title;
@@ -178,7 +193,29 @@ export function renderReviewAnalyses(payload, rootEl) {
       err.textContent = item.error;
       body.appendChild(err);
     } else if (item.analysis) {
-      renderCardAnalysis(body, item.analysis, item.review_index);
+      if (!firstSuccessOpened) {
+        details.open = true;
+        firstSuccessOpened = true;
+      }
+
+      let remount = null;
+      if (isFcm) {
+        const fcmHandle = renderFcmCard(body, item.analysis, {
+          reviewIndex: item.review_index,
+          detailsEl: details,
+        });
+        remount = () => fcmHandle.tryMountGraph();
+      } else {
+        remount = renderCardAnalysis(body, item.analysis, item.review_index, details);
+      }
+
+      details.appendChild(body);
+      rootEl.appendChild(details);
+
+      if (details.open && remount) {
+        requestAnimationFrame(() => requestAnimationFrame(() => remount()));
+      }
+      return;
     }
 
     details.appendChild(body);

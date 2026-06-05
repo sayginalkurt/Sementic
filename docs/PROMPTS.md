@@ -217,3 +217,39 @@ Concept pairs to label (alphabetical a, b):
 3. Relation inference × 3 analysis types (multiple batches per type)
 
 See [FLOW.md](FLOW.md) for the full pipeline.
+
+---
+
+## 6. FCM — concept merge (hybrid)
+
+**Source:** `concept_hybrid.py` — `CONCEPT_MERGE_SYSTEM`, `CONCEPT_MERGE_USER`  
+**When:** After spaCy phrase extraction + embedding clustering.
+
+Groups phrase clusters into higher-level English concept labels. Maps every phrase to a `concept_id`.
+
+---
+
+## 7. FCM — polarity context
+
+**Source:** `fcm_inference.py` — `POLARITY_SYSTEM`, `POLARITY_USER`  
+**When:** After concept merge, before edge inference.
+
+Returns `review_tone` and per-concept `concept_valence` with ambivalence notes (e.g. small size + good organization → navigability).
+
+---
+
+## 8. FCM — causal edges
+
+**Source:** `fcm_inference.py` — `FCM_EDGE_SYSTEM`, `FCM_EDGE_USER`  
+**When:** Final LLM step; uses concepts, phrase map, polarity context, and full English text.
+
+Each edge: `source`, `target`, `weight` (−2..+2), `strength`, `polarity`, `evidence_sentence`, `analyst_note`.
+
+**Call order (FCM):**
+
+1. Language detect (no LLM)
+2. Translation batches (if not English)
+3. spaCy phrases + OpenAI embeddings (no chat)
+4. Concept merge (one chat call)
+5. Polarity context (one chat call)
+6. FCM edges (one chat call)
