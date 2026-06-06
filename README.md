@@ -36,7 +36,7 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 | `GOOGLE_PLACES_API_KEY` | Optional; server review fetch (defaults to Maps key) |
 | `APP_PASSWORD` | App login password (Railway only; no gate when running locally) |
 
-4. Add a build step (or one-off deploy command) for spaCy: `python -m spacy download en_core_web_sm`
+4. spaCy English model (`en_core_web_sm`) is installed automatically via `requirements.txt` + Nixpacks build.
 5. Railway sets `PORT` automatically; the app binds to `0.0.0.0`.
 6. Generate a public domain under **Settings → Networking**.
 
