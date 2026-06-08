@@ -27,6 +27,7 @@ const minFreqWrap = document.getElementById("min-freq-wrap");
 const protocolNoteFreetext = document.getElementById("protocol-note-freetext");
 const protocolNotePlaces = document.getElementById("protocol-note-places");
 const protocolNoteDataset = document.getElementById("protocol-note-dataset");
+const protocolNoteAudio = document.getElementById("protocol-note-audio");
 const pipelineTabs = document.querySelectorAll(".pipeline-tab");
 const submitBtn = document.getElementById("submit-btn");
 const apiStatus = document.getElementById("api-status");
@@ -59,6 +60,12 @@ const PROTOCOL_NOTES = {
       "PROTOCOL C · STAT-3NET — Drive/local dataset → respondent select → open_ended_response pipeline",
     fcm:
       "PROTOCOL C · FCM — Drive/local dataset → respondent select → FCM causal map",
+  },
+  audio: {
+    statistical:
+      "PROTOCOL D · STAT-3NET — Audio ingest → Gemini transcribe → text pipeline → network map",
+    fcm:
+      "PROTOCOL D · FCM — Audio ingest → Gemini transcribe → thematic causal map",
   },
 };
 
@@ -421,7 +428,7 @@ form.addEventListener("submit", async (e) => {
 });
 
 function setSource(source) {
-  const valid = ["freetext", "places", "dataset"].includes(source) ? source : "freetext";
+  const valid = ["freetext", "places", "dataset", "audio"].includes(source) ? source : "freetext";
   sourceTabs.forEach((tab) => {
     const on = tab.dataset.source === valid;
     tab.classList.toggle("on", on);
@@ -443,6 +450,9 @@ function setSource(source) {
   if (valid === "dataset") {
     window.dispatchEvent(new CustomEvent("sementic:dataset-panel-shown"));
   }
+  if (valid === "audio") {
+    window.dispatchEvent(new CustomEvent("sementic:audio-panel-shown"));
+  }
 }
 
 sourceTabs.forEach((tab) => {
@@ -457,7 +467,7 @@ const savedSource = (() => {
   }
 })();
 setSource(
-  savedSource === "places" || savedSource === "dataset" ? savedSource : "freetext"
+  ["places", "dataset", "audio"].includes(savedSource) ? savedSource : "freetext"
 );
 
 function updatePipelineUi() {
@@ -465,6 +475,7 @@ function updatePipelineUi() {
   minFreqWrap?.classList.toggle("hidden-stat-only", isFcm);
   document.getElementById("places-min-freq-wrap")?.classList.toggle("hidden-stat-only", isFcm);
   document.getElementById("dataset-min-freq-wrap")?.classList.toggle("hidden-stat-only", isFcm);
+  document.getElementById("audio-min-freq-wrap")?.classList.toggle("hidden-stat-only", isFcm);
   if (pipelineInput) pipelineInput.value = currentPipeline;
   if (protocolNoteFreetext) {
     protocolNoteFreetext.textContent = PROTOCOL_NOTES.freetext[currentPipeline];
@@ -474,6 +485,9 @@ function updatePipelineUi() {
   }
   if (protocolNoteDataset) {
     protocolNoteDataset.textContent = PROTOCOL_NOTES.dataset[currentPipeline];
+  }
+  if (protocolNoteAudio) {
+    protocolNoteAudio.textContent = PROTOCOL_NOTES.audio[currentPipeline];
   }
 }
 

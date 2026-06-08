@@ -76,6 +76,18 @@
             <span class="ch-id">CH-C</span>
             Dataset
           </button>
+          <button
+            type="button"
+            class="source-tab"
+            role="tab"
+            id="tab-audio"
+            aria-selected="false"
+            aria-controls="panel-audio"
+            data-source="audio"
+          >
+            <span class="ch-id">CH-D</span>
+            Audio
+          </button>
         </div>
       </nav>
 
@@ -366,6 +378,72 @@
           </div>
         </div>
       </section>
+
+      <!-- ── CH-D: Audio (record / upload → Gemini transcribe) ── -->
+      <section
+        id="panel-audio"
+        class="source-panel"
+        role="tabpanel"
+        aria-labelledby="tab-audio"
+        hidden
+      >
+        <p class="protocol-note" id="protocol-note-audio">
+          PROTOCOL D · STAT-3NET — Audio ingest → Gemini transcribe → text pipeline → network map
+        </p>
+
+        <div class="lab-module block audio-block" id="audio-section" data-mod="30">
+          <header class="module-head">
+            <span class="mod-id">MOD-30</span>
+            <span class="mod-name">AUDIO INPUT BUFFER</span>
+          </header>
+          <div class="module-body">
+            <p id="audio-config-msg" class="hint sys-msg" hidden></p>
+
+            <div id="audio-ui" hidden>
+              <div class="audio-controls">
+                <button type="button" id="audio-record-btn" class="btn btn-record">
+                  ● REC
+                </button>
+                <button type="button" id="audio-stop-btn" class="btn btn-stop" disabled>
+                  ■ STOP
+                </button>
+                <span id="audio-timer" class="hint readout">00:00</span>
+                <label class="file-label">
+                  <span class="field-label inline">FILE IN</span>
+                  <input
+                    type="file"
+                    id="audio-file-input"
+                    accept="audio/*,.webm,.wav,.mp3,.m4a,.ogg,.flac"
+                  />
+                </label>
+                <span id="audio-file-name" class="file-name"></span>
+              </div>
+
+              <div id="audio-preview-wrap" class="audio-preview-wrap" hidden>
+                <span class="field-label inline">PREVIEW</span>
+                <audio id="audio-preview" controls class="audio-preview"></audio>
+              </div>
+
+              <div class="audio-actions">
+                <label class="freq" id="audio-min-freq-wrap">
+                  <span class="field-label inline">MIN_FREQ</span>
+                  <input type="number" id="audio-min-freq" value="0" min="0" max="10" />
+                </label>
+                <button type="button" id="audio-analyze-btn" class="btn btn-run" disabled>
+                  ▶ RUN PIPELINE
+                </button>
+              </div>
+
+              <p id="audio-error-msg" class="error" hidden></p>
+              <p id="audio-analyze-loading" class="hint sys-msg" hidden>
+                ⟳ TRANSCRIBING + PIPELINE RUNNING…
+              </p>
+
+              <div id="audio-results-root" class="audio-results-root" hidden></div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="lab-footer">
@@ -386,5 +464,6 @@
     <script src="/static/app.js" type="module"></script>
     <script src="/static/dataset.js" type="module"></script>
     <script src="/static/places.js" type="module"></script>
+    <script src="/static/audio.js" type="module"></script>
   </body>
 </html>

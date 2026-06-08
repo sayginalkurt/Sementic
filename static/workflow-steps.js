@@ -34,6 +34,11 @@ export const PLACES_EXTRA_STEPS = [
   { id: "batch_complete", num: "P3", label: "BATCH COMPLETE" },
 ];
 
+export const AUDIO_EXTRA_STEPS = [
+  { id: "audio_upload", num: "A1", label: "AUDIO INGEST" },
+  { id: "transcribe", num: "A2", label: "GEMINI TRANSCRIBE" },
+];
+
 export const PLACES_BATCH_STEPS = [
   ...PLACES_EXTRA_STEPS.slice(0, 2),
   ...ANALYSIS_STEPS,
@@ -52,4 +57,11 @@ export function stepsForPipeline(pipeline) {
 
 export function placesBatchStepsForPipeline(pipeline) {
   return pipeline === "fcm" ? PLACES_FCM_BATCH_STEPS : PLACES_BATCH_STEPS;
+}
+
+export const AUDIO_STAT_STEPS = [...AUDIO_EXTRA_STEPS, ...ANALYSIS_STEPS];
+export const AUDIO_FCM_STEPS = [...AUDIO_EXTRA_STEPS, ...FCM_STEPS];
+
+export function audioStepsForPipeline(pipeline) {
+  return pipeline === "fcm" ? AUDIO_FCM_STEPS : AUDIO_STAT_STEPS;
 }

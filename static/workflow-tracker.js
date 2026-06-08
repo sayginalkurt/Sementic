@@ -6,10 +6,14 @@ import {
   ANALYSIS_STEPS,
   FCM_STEPS,
   PLACES_EXTRA_STEPS,
+  AUDIO_EXTRA_STEPS,
 } from "./workflow-steps.js";
 
 const STEP_MAP = new Map(
-  [...ANALYSIS_STEPS, ...FCM_STEPS, ...PLACES_EXTRA_STEPS].map((s) => [s.id, s])
+  [...ANALYSIS_STEPS, ...FCM_STEPS, ...PLACES_EXTRA_STEPS, ...AUDIO_EXTRA_STEPS].map((s) => [
+    s.id,
+    s,
+  ])
 );
 
 function ts() {

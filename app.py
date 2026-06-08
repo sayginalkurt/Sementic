@@ -23,6 +23,11 @@ ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env", override=True)
 
 from analysis_service import MIN_ANALYSIS_TEXT_LEN, run_sementic_analysis
+from audio_transcribe import (
+    gemini_configured,
+    gemini_model,
+    transcribe_audio,
+)
 from auth import AppPasswordMiddleware, auth_enabled, register_auth_routes
 from dataset import (
     comparison_fields_from_row,
@@ -136,6 +141,7 @@ async def health() -> dict:
         "auth_required": auth_enabled(),
         "dataset_configured": ds_configured,
         "dataset_source": ds_source,
+        "gemini_configured": gemini_configured(),
     }
 
 
@@ -261,6 +267,80 @@ async def analyze_dataset_respondent(
         raise HTTPException(503, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(502, f"Analysis error: {exc}") from exc
+
+
+@app.get("/api/audio/config")
+async def audio_config() -> dict:
+    return {
+        "configured": gemini_configured(),
+        "model": gemini_model() if gemini_configured() else None,
+    }
+
+
+def _analyze_audio_payload(
+    audio_bytes: bytes,
+    mime_type: str,
+    *,
+    min_freq: int,
+    pipeline: str,
+    on_progress: ProgressFn | None = None,
+) -> dict:
+    tx = transcribe_audio(
+        audio_bytes,
+        mime_type=mime_type,
+        on_progress=on_progress,
+    )
+    transcript = tx["transcript"]
+    analysis = _run_pipeline(
+        transcript,
+        min_freq=min_freq,
+        pipeline=pipeline,
+        on_progress=on_progress,
+    )
+    return {
+        "transcript": transcript,
+        "transcription": tx,
+        "pipeline": normalize_pipeline(pipeline),
+        "analysis": analysis,
+    }
+
+
+@app.post("/api/audio/analyze/stream")
+async def analyze_audio_stream(
+    audio: UploadFile = File(...),
+    min_freq: int = Form(0),
+    pipeline: str = Form("statistical"),
+) -> StreamingResponse:
+    if not gemini_configured():
+        raise HTTPException(503, "GEMINI_API_KEY not configured.")
+
+    payload = await audio.read()
+    if not payload:
+        raise HTTPException(400, "Empty audio file.")
+
+    mime = (audio.content_type or "audio/webm").split(";")[0].strip().lower()
+    captured_bytes = payload
+    captured_mime = mime
+    captured_freq = min_freq
+    captured_pipeline = normalize_pipeline(pipeline)
+
+    def work(on_progress: ProgressFn) -> dict:
+        emit(on_progress, "audio_upload", "running", {"bytes": len(captured_bytes)})
+        emit(
+            on_progress,
+            "audio_upload",
+            "done",
+            {"bytes": len(captured_bytes), "mime": captured_mime},
+        )
+        return _analyze_audio_payload(
+            captured_bytes,
+            captured_mime,
+            min_freq=captured_freq,
+            pipeline=captured_pipeline,
+            on_progress=on_progress,
+        )
+
+    return _ndjson_stream(work)
 
 
 @app.get("/api/places/config")

@@ -40,6 +40,11 @@ PLACES_EXTRA_STEPS: list[dict[str, str]] = [
     {"id": "batch_complete", "num": "P3", "label": "BATCH COMPLETE"},
 ]
 
+AUDIO_EXTRA_STEPS: list[dict[str, str]] = [
+    {"id": "audio_upload", "num": "A1", "label": "AUDIO INGEST"},
+    {"id": "transcribe", "num": "A2", "label": "GEMINI TRANSCRIBE"},
+]
+
 RELATION_STEP_BY_KIND = {
     "cooccurrence": "relations_co",
     "semantic": "relations_se",
