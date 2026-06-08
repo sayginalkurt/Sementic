@@ -119,14 +119,20 @@ async def index() -> FileResponse:
 @app.get("/api/health")
 async def health() -> dict:
     key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    try:
+        ds_configured = dataset_configured()
+        ds_source = dataset_source()
+    except Exception:
+        ds_configured = False
+        ds_source = "none"
     return {
         "ok": True,
         "openai_configured": bool(key),
         "google_maps_configured": bool(maps_api_key()),
         "google_places_configured": bool(places_api_key()),
         "auth_required": auth_enabled(),
-        "dataset_configured": dataset_configured(),
-        "dataset_source": dataset_source(),
+        "dataset_configured": ds_configured,
+        "dataset_source": ds_source,
     }
 
 

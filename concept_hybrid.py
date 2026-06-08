@@ -14,16 +14,16 @@ from ai_preprocess import _chat_json, _openai_client
 
 CONCEPT_MERGE_SYSTEM = """You are a qualitative research analyst labeling extracted phrases for a fuzzy cognitive map.
 
-Prefer FINE-GRAINED concepts that keep the network rich. Merge ONLY when phrases are near-paraphrases or unmistakably the same idea.
+Output THEMATIC CONCEPT labels (codebook-level constructs) derived from the input — NOT individual words or lemmas.
 
-Examples of justified merge:
-- "open spaces", "great views of the water" → "views and open space" (same theme)
-Do NOT collapse unrelated phrases into one broad bucket like "overall quality".
+Merge only when phrases are near-paraphrases of the same construct.
+Do not collapse unrelated phrases into one broad generic bucket.
 
 Rules:
-- English concept labels (2–5 words), specific rather than generic
+- English Title Case labels (1–4 words), specific rather than generic
+- Derive labels from the text and phrase clusters; do not use a predefined vocabulary
 - Every phrase maps to exactly one concept
-- Keep most distinct phrases as separate concepts when in doubt
+- Keep distinct thematic ideas separate when in doubt
 - Return valid JSON only"""
 
 CONCEPT_MERGE_USER = """English text (by sentence):

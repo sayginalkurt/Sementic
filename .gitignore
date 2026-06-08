@@ -20,3 +20,5 @@ service-account*.json
 # Env variants (keep .env.example tracked)
 .env.*
 !.env.example
+railway-*.local.txt
+service-account.base64.txt

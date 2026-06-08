@@ -2,21 +2,47 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import os
 from pathlib import Path
 from typing import Any
 
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-
 ROOT = Path(__file__).resolve().parent
 SCOPES = ("https://www.googleapis.com/auth/drive.readonly",)
 DEFAULT_DATASET_FILENAME = "brand_trust_dataset.xlsx"
 MIME_GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet"
 MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+_GOOGLE_LIBS_OK: bool | None = None
+
+
+def _ensure_google_libs() -> None:
+    global _GOOGLE_LIBS_OK
+    if _GOOGLE_LIBS_OK is True:
+        return
+    if _GOOGLE_LIBS_OK is False:
+        raise RuntimeError(
+            "Google Drive libraries not installed (google-api-python-client)."
+        )
+    try:
+        import google.oauth2.service_account  # noqa: F401
+        import googleapiclient.discovery  # noqa: F401
+        _GOOGLE_LIBS_OK = True
+    except ImportError as exc:
+        _GOOGLE_LIBS_OK = False
+        raise RuntimeError(
+            "Google Drive libraries not installed (google-api-python-client)."
+        ) from exc
+
+
+def google_libs_available() -> bool:
+    try:
+        _ensure_google_libs()
+        return True
+    except RuntimeError:
+        return False
 
 
 def drive_dataset_file_id() -> str:
@@ -29,7 +55,58 @@ def drive_dataset_filename() -> str:
     ).strip()
 
 
+def _resolve_credentials_path(path: str) -> Path:
+    p = Path(path)
+    if p.is_file():
+        return p
+    candidate = ROOT / path
+    if candidate.is_file():
+        return candidate
+    return p
+
+
+def _parse_service_account_json(raw: str) -> dict[str, Any] | None:
+    text = raw.strip()
+    if not text:
+        return None
+    try:
+        data = json.loads(text)
+        return data if isinstance(data, dict) else None
+    except json.JSONDecodeError:
+        pass
+    try:
+        decoded = base64.b64decode(text, validate=True).decode("utf-8")
+        data = json.loads(decoded)
+        return data if isinstance(data, dict) else None
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+
+def _service_account_info() -> dict[str, Any] | None:
+    raw = (os.environ.get("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON") or "").strip()
+    if raw:
+        return _parse_service_account_json(raw)
+
+    b64 = (os.environ.get("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON_B64") or "").strip()
+    if b64:
+        return _parse_service_account_json(b64)
+
+    path = (os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+    if path:
+        resolved = _resolve_credentials_path(path)
+        if resolved.is_file():
+            try:
+                with open(resolved, encoding="utf-8") as f:
+                    data = json.load(f)
+                return data if isinstance(data, dict) else None
+            except (OSError, json.JSONDecodeError):
+                return None
+    return None
+
+
 def credentials_configured() -> bool:
+    if not google_libs_available():
+        return False
     return _service_account_info() is not None
 
 
@@ -47,36 +124,11 @@ def service_account_email() -> str | None:
     return str(email) if email else None
 
 
-def _resolve_credentials_path(path: str) -> Path:
-    p = Path(path)
-    if p.is_file():
-        return p
-    candidate = ROOT / path
-    if candidate.is_file():
-        return candidate
-    return p
-
-
-def _service_account_info() -> dict[str, Any] | None:
-    raw = (os.environ.get("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON") or "").strip()
-    if raw:
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON is not valid JSON."
-            ) from exc
-
-    path = (os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
-    if path:
-        resolved = _resolve_credentials_path(path)
-        if resolved.is_file():
-            with open(resolved, encoding="utf-8") as f:
-                return json.load(f)
-    return None
-
-
 def _drive_service():
+    _ensure_google_libs()
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
     info = _service_account_info()
     if not info:
         raise RuntimeError(
@@ -120,6 +172,8 @@ def resolve_dataset_file_id() -> str:
 
 def _download_request(service, file_id: str):
     """Native xlsx or Google Sheet exported as xlsx."""
+    from googleapiclient.http import MediaIoBaseDownload
+
     meta = (
         service.files()
         .get(fileId=file_id, fields="mimeType,name", supportsAllDrives=True)
@@ -133,6 +187,8 @@ def _download_request(service, file_id: str):
 
 def fetch_drive_file_bytes(file_id: str | None = None) -> bytes:
     """Download a Drive file by ID (xlsx or Google Sheet → xlsx export)."""
+    from googleapiclient.http import MediaIoBaseDownload
+
     fid = (file_id or resolve_dataset_file_id()).strip()
 
     service = _drive_service()

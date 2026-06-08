@@ -11,14 +11,15 @@ from openai import OpenAI
 
 from preprocess import ENGLISH_STOPWORDS, normalize_text, sentences_from_text
 
-# Function words / fillers that must not enter matrices (English)
+# Function words / fillers that must not enter matrices as standalone concepts
 CONCEPT_BLOCKLIST = frozenset(
     """
     about above across after against along amid among around before behind below
     comes came coming goes went going gets got getting makes made making says said
     saying thinks thought knows knew sees saw wants needs uses used using takes took
     gives gave tells feels seemed looked becomes there their they're its it's
-    upon onto unto thee thy thine whilst wherein whereby
+    upon onto unto thee thy thine whilst wherein whereby something someone anybody
+    people person humans being beings really quite perhaps maybe
     """.split()
 ) | ENGLISH_STOPWORDS
 
@@ -44,36 +45,28 @@ Input JSON array:
 
 TRANSLATE_ONE_SYSTEM = """Translate the given sentence to English. Return JSON only: {"text": "..."}"""
 
-CONCEPT_SYSTEM_PROMPT = """You are an expert coder extracting EPISTEMIC / THEMATIC CONCEPT codes from qualitative research text in English.
+CONCEPT_SYSTEM_PROMPT = """You are an expert qualitative researcher coding THEMATIC CONCEPTS from English open-ended text.
 
-CRITICAL: Every concept code MUST be an English lemma (Latin alphabet a-z only). Never output Turkish or any non-English word, even if it appeared in the source.
+A CONCEPT is a codebook-level thematic construct — NOT an individual word, lemma, or noun picked from the sentence.
 
-Task: For each sentence, list concept lemmas that represent the ideas expressed—like answers to "What comes to mind about Amazon?" (meaning units, not grammar).
-
-EXTRACT (examples):
-- "When I think of Amazon, product variety comes to mind" → ["amazon", "product", "variety"]
-- "Fast delivery builds trust" → ["delivery", "speed", "trust"]
-- "The return process is easy" → ["return", "process", "ease"]
-
-DO NOT EXTRACT:
-- Conjunctions / prepositions / fillers: and, or, the, of, for, with, but, because …
-- Pronouns / demonstratives: this, that, it, one, someone, people …
-- Grammatical fragments: comes, mind, being, having, very, really …
-- Time / quantity fluff: many, some, often, always …
-- Words that are not standalone thematic codes even if they appear in the text
+Derive the concept set entirely from the input text. Do not use a predefined vocabulary or copy labels from instructions.
 
 Rules:
-- Lowercase English lemmas (1–2 meaningful words; no unnecessary compounds)
-- One entry per repeated concept per sentence
+- English only; Title Case labels (1–4 words)
+- Reuse the exact same label when the same thematic idea appears in multiple sentences
+- Identify a concise set of distinct concepts for the full text; assign relevant concepts to each sentence
+- Do not output grammar words, fillers, pronouns, or raw text fragments
+- Do not output single content words where a multi-word construct is more accurate
 - Empty sentence → []
 - Return valid JSON only"""
 
-CONCEPT_USER_TEMPLATE = """Read the English text sentence by sentence. Extract only thematic concept codes (no grammar/fillers).
+CONCEPT_USER_TEMPLATE = """Read the full text first and derive the thematic concept codebook from the content.
+Then, sentence by sentence, list which derived concepts are expressed in each sentence.
 
 JSON:
 {{
   "sentences": [
-    ["concept1", "concept2"],
+    ["...", "..."],
     ...
   ]
 }}
@@ -88,18 +81,38 @@ Text:
 # Small batches — large arrays cause the model to drop or merge sentences
 _TRANSLATE_BATCH_MAX_SENTENCES = 18
 _TRANSLATE_BATCH_MAX_CHARS = 12_000
-_NON_ENGLISH_CHARS = re.compile(r"[^a-z0-9'-]")
+_NON_ENGLISH_CHARS = re.compile(r"[^a-zA-Z0-9'\-/ ]")
+_SMALL_WORDS = frozenset({"of", "and", "or", "for", "to", "in", "on", "at", "by", "the", "a", "an"})
 
 
-def is_valid_concept(word: str) -> bool:
-    w = word.strip().lower()
-    if len(w) < 2:
+def normalize_concept_label(raw: str) -> str:
+    s = re.sub(r"\s+", " ", raw.strip())
+    if not s:
+        return ""
+    words = []
+    for word in s.split(" "):
+        if not word:
+            continue
+        if "'" in word:
+            parts = word.split("'")
+            words.append("'".join(p[:1].upper() + p[1:].lower() if p else "" for p in parts))
+        elif word.lower() in _SMALL_WORDS and words:
+            words.append(word.lower())
+        else:
+            words.append(word[:1].upper() + word[1:].lower())
+    return " ".join(words)
+
+
+def is_valid_concept(label: str) -> bool:
+    s = normalize_concept_label(label)
+    if len(s) < 2 or len(s) > 48:
         return False
-    if w in CONCEPT_BLOCKLIST:
+    if _NON_ENGLISH_CHARS.search(s):
         return False
-    if _NON_ENGLISH_CHARS.search(w):
+    if not re.match(r"^[A-Za-z][A-Za-z0-9'\-/ ]*[A-Za-z0-9']$", s):
         return False
-    if not re.match(r"^[a-z][a-z0-9'-]*$", w):
+    low = s.lower()
+    if " " not in s and low in CONCEPT_BLOCKLIST:
         return False
     return True
 
@@ -110,9 +123,10 @@ def filter_concept_list(tokens: list[str]) -> list[str]:
     for token in tokens:
         if not isinstance(token, str):
             continue
-        w = token.strip().lower()
-        if is_valid_concept(w) and w not in seen:
-            seen.add(w)
+        w = normalize_concept_label(token)
+        key = w.lower()
+        if is_valid_concept(w) and key not in seen:
+            seen.add(key)
             row.append(w)
     return row
 

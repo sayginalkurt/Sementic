@@ -107,16 +107,16 @@ All later coding and relation inference use this English text.
 **Module:** `ai_preprocess.py` → `extract_concepts_with_ai`
 
 - OpenAI receives the **English** sentences (joined for the prompt).
-- Returns JSON: one list of **English lemma** codes per sentence.
-- Blocklist removes fillers, pronouns, grammar fragments; only `a-z` lemmas kept.
+- Returns JSON: one list of **thematic concept labels** per sentence (Title Case constructs, e.g. `Brand Trust`, `Social Proof`).
+- Blocklist removes grammar fragments; labels are normalized to Title Case codebook style.
 - Output: `concepts_by_sentence[][]` (aligned with sentence index).
 
 Example:
 
 ```json
 [
-  ["amazon", "product", "variety"],
-  ["delivery", "speed", "trust"]
+  ["Brand Trust", "Social Proof", "Recommendations"],
+  ["Word of Mouth", "Reviews"]
 ]
 ```
 

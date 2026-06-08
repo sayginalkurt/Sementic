@@ -81,30 +81,23 @@ The raw sentence text (no template).
 **Source:** `CONCEPT_SYSTEM_PROMPT`, `CONCEPT_USER_TEMPLATE`  
 **When:** Once per analyze, on joined English sentences.
 
+Concepts are **thematic constructs** (codebook labels), not individual words. The model derives the concept set from the input text only — no reference examples or predefined vocabulary in the prompt.
+
 ### System
 
 ```
-You are an expert coder extracting EPISTEMIC / THEMATIC CONCEPT codes from qualitative research text in English.
+You are an expert qualitative researcher coding THEMATIC CONCEPTS from English open-ended text.
 
-CRITICAL: Every concept code MUST be an English lemma (Latin alphabet a-z only). Never output Turkish or any non-English word, even if it appeared in the source.
+A CONCEPT is a codebook-level thematic construct — NOT an individual word, lemma, or noun picked from the sentence.
 
-Task: For each sentence, list concept lemmas that represent the ideas expressed—like answers to "What comes to mind about Amazon?" (meaning units, not grammar).
-
-EXTRACT (examples):
-- "When I think of Amazon, product variety comes to mind" → ["amazon", "product", "variety"]
-- "Fast delivery builds trust" → ["delivery", "speed", "trust"]
-- "The return process is easy" → ["return", "process", "ease"]
-
-DO NOT EXTRACT:
-- Conjunctions / prepositions / fillers: and, or, the, of, for, with, but, because …
-- Pronouns / demonstratives: this, that, it, one, someone, people …
-- Grammatical fragments: comes, mind, being, having, very, really …
-- Time / quantity fluff: many, some, often, always …
-- Words that are not standalone thematic codes even if they appear in the text
+Derive the concept set entirely from the input text. Do not use a predefined vocabulary or copy labels from instructions.
 
 Rules:
-- Lowercase English lemmas (1–2 meaningful words; no unnecessary compounds)
-- One entry per repeated concept per sentence
+- English only; Title Case labels (1–4 words)
+- Reuse the exact same label when the same thematic idea appears in multiple sentences
+- Identify a concise set of distinct concepts for the full text; assign relevant concepts to each sentence
+- Do not output grammar words, fillers, pronouns, or raw text fragments
+- Do not output single content words where a multi-word construct is more accurate
 - Empty sentence → []
 - Return valid JSON only
 ```
@@ -112,12 +105,13 @@ Rules:
 ### User
 
 ```
-Read the English text sentence by sentence. Extract only thematic concept codes (no grammar/fillers).
+Read the full text first and derive the thematic concept codebook from the content.
+Then, sentence by sentence, list which derived concepts are expressed in each sentence.
 
 JSON:
 {
   "sentences": [
-    ["concept1", "concept2"],
+    ["...", "..."],
     ...
   ]
 }
@@ -132,11 +126,11 @@ Text:
 
 **Variables:** `{count}` — number of sentences; `{text}` — English lines joined with newlines (truncated at 120,000 chars).
 
-**Expected JSON:** `{"sentences": [["lemma", ...], ...]}`
+**Expected JSON:** `{"sentences": [["Concept Label", ...], ...]}`
 
 ### Post-processing (not a prompt)
 
-Concepts are filtered in code via `CONCEPT_BLOCKLIST` and `ENGLISH_STOPWORDS` (`preprocess.py` / `ai_preprocess.py`). Only `a-z` lemmas pass `is_valid_concept()`.
+Concepts are normalized to **Title Case** and filtered via `CONCEPT_BLOCKLIST` and `ENGLISH_STOPWORDS` (`ai_preprocess.py`).
 
 ---
 
