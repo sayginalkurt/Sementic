@@ -145,19 +145,35 @@ export function renderFcmResults(data, rootEl, opts = {}) {
   const conceptsFold = document.createElement("details");
   conceptsFold.className = "fold";
   conceptsFold.open = true;
-  conceptsFold.innerHTML = "<summary>[ EXPAND ] Concept map (phrase → theme)</summary>";
+  conceptsFold.innerHTML = "<summary>[ EXPAND ] Thematic concept codebook</summary>";
 
-  const conceptTable = document.createElement("table");
-  conceptTable.className = "data-table fcm-edge-table";
-  conceptTable.innerHTML = "<thead><tr><th>concept</th><th>phrases</th></tr></thead>";
-  const cbody = document.createElement("tbody");
-  (data.concepts || []).forEach((c) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${escapeHtml(c.label)}</td><td>${escapeHtml((c.phrases || []).join(" · "))}</td>`;
-    cbody.appendChild(tr);
-  });
-  conceptTable.appendChild(cbody);
-  conceptsFold.appendChild(conceptTable);
+  const codebook = document.createElement("p");
+  codebook.className = "concept-lines";
+  codebook.textContent = (data.concepts || []).map((c) => c.label).join(" · ") || "—";
+  conceptsFold.appendChild(codebook);
+
+  if ((data.concepts_by_sentence || []).length) {
+    const bySent = document.createElement("div");
+    bySent.className = "concept-lines muted-lines";
+    (data.concepts_by_sentence || []).forEach((row, i) => {
+      const p = document.createElement("p");
+      p.textContent = `${i + 1}. ${(row || []).join(", ") || "—"}`;
+      bySent.appendChild(p);
+    });
+    conceptsFold.appendChild(bySent);
+  } else {
+    const conceptTable = document.createElement("table");
+    conceptTable.className = "data-table fcm-edge-table";
+    conceptTable.innerHTML = "<thead><tr><th>concept</th><th>phrases</th></tr></thead>";
+    const cbody = document.createElement("tbody");
+    (data.concepts || []).forEach((c) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${escapeHtml(c.label)}</td><td>${escapeHtml((c.phrases || []).join(" · "))}</td>`;
+      cbody.appendChild(tr);
+    });
+    conceptTable.appendChild(cbody);
+    conceptsFold.appendChild(conceptTable);
+  }
   rootEl.appendChild(conceptsFold);
 
   const edgesTitle = document.createElement("p");

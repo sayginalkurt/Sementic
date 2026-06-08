@@ -95,7 +95,7 @@ Derive the concept set entirely from the input text. Do not use a predefined voc
 Rules:
 - English only; Title Case labels (1–4 words)
 - Reuse the exact same label when the same thematic idea appears in multiple sentences
-- Identify a concise set of distinct concepts for the full text; assign relevant concepts to each sentence
+- Include every distinct thematic concept the full text supports; assign relevant concepts to each sentence
 - Do not output grammar words, fillers, pronouns, or raw text fragments
 - Do not output single content words where a multi-word construct is more accurate
 - Empty sentence → []
@@ -214,12 +214,14 @@ See [FLOW.md](FLOW.md) for the full pipeline.
 
 ---
 
-## 6. FCM — concept merge (hybrid)
+## 6. FCM — document-level thematic concepts
 
-**Source:** `concept_hybrid.py` — `CONCEPT_MERGE_SYSTEM`, `CONCEPT_MERGE_USER`  
-**When:** After spaCy phrase extraction + embedding clustering.
+**Source:** `concept_hybrid.py` — `extract_fcm_document_concepts`  
+**When:** After translation, before polarity and edge inference.
 
-Groups phrase clusters into higher-level English concept labels. Maps every phrase to a `concept_id`.
+Reads the full open-ended response and derives a **document-level codebook** of broad thematic categories (Title Case constructs), not spaCy noun phrases or word-level labels. Concept count is driven by the text — no fixed target or maximum. Each sentence is tagged with which concepts it expresses.
+
+Downstream FCM edge inference uses this compact concept list.
 
 ---
 
@@ -244,6 +246,6 @@ Each edge: `source`, `target`, `weight` (−2..+2), `strength`, `polarity`, `evi
 1. Language detect (no LLM)
 2. Translation batches (if not English)
 3. spaCy phrases + OpenAI embeddings (no chat)
-4. Concept merge (one chat call)
+4. Document-level thematic concept codebook (one LLM call)
 5. Polarity context (one chat call)
 6. FCM edges (one chat call)

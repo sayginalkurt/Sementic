@@ -127,8 +127,8 @@ def infer_fcm_edges(
 ) -> list[dict[str, Any]]:
     oai = client or _openai_client()
     chosen = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-    labels = {c["label"] for c in concepts}
     label_list = [c["label"] for c in concepts]
+    label_by_lower = {lab.lower(): lab for lab in label_list}
 
     data = _chat_json(
         oai,
@@ -152,11 +152,9 @@ def infer_fcm_edges(
     for item in raw_edges:
         if not isinstance(item, dict):
             continue
-        source = str(item.get("source", "")).strip().lower()
-        target = str(item.get("target", "")).strip().lower()
+        source = label_by_lower.get(str(item.get("source", "")).strip().lower())
+        target = label_by_lower.get(str(item.get("target", "")).strip().lower())
         if not source or not target or source == target:
-            continue
-        if source not in labels or target not in labels:
             continue
 
         polarity = str(item.get("polarity", "positive")).strip().lower()

@@ -45,13 +45,13 @@ const PROTOCOL_NOTES = {
     statistical:
       "PROTOCOL A · STAT-3NET — Ingest text → translate → lemma concepts → co/sem/ep matrices → directed graphs",
     fcm:
-      "PROTOCOL A · FCM — Lang detect → hybrid concept merge → contextual polarity → causal edges → adjacency matrix",
+      "PROTOCOL A · FCM — Lang detect → thematic categories → concept codebook → causal edges → adjacency matrix",
   },
   places: {
     statistical:
       "PROTOCOL B · STAT-3NET — Geo lookup → review fetch → per-review statistical pipeline",
     fcm:
-      "PROTOCOL B · FCM — Geo lookup → review fetch → per-review FCM causal map",
+      "PROTOCOL B · FCM — Geo lookup → review fetch → per-review thematic concept map",
   },
   dataset: {
     statistical:

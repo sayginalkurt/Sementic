@@ -10,7 +10,42 @@ from typing import Any
 from openai import OpenAI
 from sklearn.cluster import AgglomerativeClustering
 
-from ai_preprocess import _chat_json, _openai_client
+from ai_preprocess import (
+    _chat_json,
+    _openai_client,
+    filter_concept_list,
+    normalize_concept_label,
+)
+
+FCM_DOCUMENT_CONCEPT_SYSTEM = """You are a qualitative researcher building a thematic concept codebook from one open-ended response.
+
+Read the FULL text for meaning. Identify broad THEMATIC CONCEPTS (codebook-level categories) — NOT individual words, lemmas, noun phrases, or surface fragments.
+
+Derive the concept set entirely from the input. Do not use a predefined vocabulary or copy labels from instructions.
+
+Rules:
+- English Title Case labels (1–4 words each)
+- Include every distinct thematic category the text supports — no fixed count or upper limit
+- Each concept must be a meaningful thematic category, not a word count or text fragment
+- Reuse the exact same label when the same idea appears in multiple sentences
+- Map which concepts are expressed in each sentence
+- Empty sentence → []
+- Return valid JSON only"""
+
+FCM_DOCUMENT_CONCEPT_USER = """English text (one open-ended response), sentence by sentence:
+{sentences_json}
+
+Return JSON:
+{{
+  "concepts": ["...", "..."],
+  "sentences": [
+    ["...", "..."],
+    ...
+  ]
+}}
+
+The "concepts" array is the document-level codebook (broad thematic categories).
+The "sentences" array must have exactly {count} entries, aligned with the input."""
 
 CONCEPT_MERGE_SYSTEM = """You are a qualitative research analyst labeling extracted phrases for a fuzzy cognitive map.
 
@@ -110,6 +145,120 @@ def extract_phrases(sentences: list[str]) -> list[dict[str, Any]]:
                 phrases.append({"sentence_idx": idx, "phrase": w})
 
     return phrases
+
+
+def _align_sentence_concepts(
+    concepts_by_sentence: list[list[str]], sentence_count: int
+) -> list[list[str]]:
+    if len(concepts_by_sentence) == sentence_count:
+        return concepts_by_sentence
+    if len(concepts_by_sentence) > sentence_count:
+        return concepts_by_sentence[:sentence_count]
+    padded = list(concepts_by_sentence)
+    while len(padded) < sentence_count:
+        padded.append([])
+    return padded
+
+
+def extract_fcm_document_concepts(
+    sentences: list[str],
+    *,
+    client: OpenAI | None = None,
+    model: str | None = None,
+) -> dict[str, Any]:
+    """
+    Document-level thematic concept codebook for FCM (broad categories, count from text).
+    Returns concepts, phrase_map (concept ↔ sentence evidence), and by-sentence tags.
+    """
+    if not sentences:
+        return {
+            "concepts": [],
+            "phrase_map": [],
+            "phrases": [],
+            "phrase_clusters": [],
+            "concepts_by_sentence": [],
+        }
+
+    oai = client or _openai_client()
+    chosen = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+    data = _chat_json(
+        oai,
+        chosen,
+        system=FCM_DOCUMENT_CONCEPT_SYSTEM,
+        user=FCM_DOCUMENT_CONCEPT_USER.format(
+            sentences_json=json.dumps(sentences, ensure_ascii=False),
+            count=len(sentences),
+        ),
+    )
+
+    raw_labels = data.get("concepts") or []
+    doc_labels: list[str] = []
+    seen: set[str] = set()
+    if isinstance(raw_labels, list):
+        for item in raw_labels:
+            if not isinstance(item, str):
+                continue
+            label = normalize_concept_label(item)
+            key = label.lower()
+            if label and key not in seen:
+                seen.add(key)
+                doc_labels.append(label)
+
+    raw_sentences = data.get("sentences") or []
+    concepts_by_sentence: list[list[str]] = []
+    if isinstance(raw_sentences, list):
+        for row in raw_sentences:
+            if isinstance(row, list):
+                concepts_by_sentence.append(filter_concept_list(row))
+            else:
+                concepts_by_sentence.append([])
+    concepts_by_sentence = _align_sentence_concepts(concepts_by_sentence, len(sentences))
+
+    if not doc_labels:
+        for row in concepts_by_sentence:
+            for label in row:
+                key = label.lower()
+                if key not in seen:
+                    seen.add(key)
+                    doc_labels.append(label)
+    else:
+        for row in concepts_by_sentence:
+            for label in row:
+                key = label.lower()
+                if key not in seen:
+                    seen.add(key)
+                    doc_labels.append(label)
+
+    concepts: list[dict[str, Any]] = [
+        {"id": f"c{i + 1}", "label": label, "phrases": []}
+        for i, label in enumerate(doc_labels)
+    ]
+    label_to_id = {c["label"].lower(): c["id"] for c in concepts}
+
+    phrase_map: list[dict[str, Any]] = []
+    for idx, row in enumerate(concepts_by_sentence):
+        sent = sentences[idx] if idx < len(sentences) else ""
+        for label in row:
+            cid = label_to_id.get(label.lower())
+            if not cid:
+                continue
+            phrase_map.append(
+                {
+                    "sentence_idx": idx,
+                    "phrase": sent[:160] + ("…" if len(sent) > 160 else ""),
+                    "concept_id": cid,
+                    "concept_label": label,
+                }
+            )
+
+    return {
+        "concepts": concepts,
+        "phrase_map": phrase_map,
+        "phrases": [],
+        "phrase_clusters": [],
+        "concepts_by_sentence": concepts_by_sentence,
+    }
 
 
 def _embed_phrases(client: OpenAI, unique_phrases: list[str]) -> list[list[float]]:
@@ -227,7 +376,7 @@ def merge_concepts_with_llm(
         if not isinstance(item, dict):
             continue
         cid = str(item.get("id") or f"c{i + 1}")
-        label = str(item.get("label") or "").strip().lower()
+        label = normalize_concept_label(str(item.get("label") or ""))
         if not label:
             continue
         phr = item.get("phrases") or []
@@ -240,7 +389,7 @@ def merge_concepts_with_llm(
                 "phrases": [_normalize_phrase(str(p)) for p in phr if str(p).strip()],
             }
         )
-        label_set.add(label)
+        label_set.add(label.lower())
 
     phrase_map_raw = data.get("phrase_map") or []
     phrase_map: list[dict[str, Any]] = []

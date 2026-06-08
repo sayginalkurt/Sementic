@@ -5,11 +5,7 @@ from __future__ import annotations
 import os
 
 from ai_preprocess import _openai_client, normalize_text, sentences_from_text
-from concept_hybrid import (
-    cluster_phrases,
-    extract_phrases,
-    merge_concepts_with_llm,
-)
+from concept_hybrid import extract_fcm_document_concepts
 from fcm_inference import infer_fcm_edges, infer_polarity_context
 from fcm_matrix import adjacency_from_edges, fcm_graph_from_edges
 from lang_detect import detect_language, prepare_english_sentences
@@ -65,30 +61,31 @@ def run_fcm_analysis(
     english_text = "\n".join(english_sentences)
 
     emit(on_progress, "phrase_extract", "running", ctx)
-    phrases = extract_phrases(english_sentences)
-    emit(on_progress, "phrase_extract", "done", {**ctx, "phrases": len(phrases)})
+    extracted = extract_fcm_document_concepts(
+        english_sentences,
+        client=client,
+        model=model,
+    )
+    concepts = extracted.get("concepts") or []
+    phrase_map = extracted.get("phrase_map") or []
+    concepts_by_sentence = extracted.get("concepts_by_sentence") or []
+    if not concepts:
+        raise ValueError("No concepts extracted from text.")
+    emit(
+        on_progress,
+        "phrase_extract",
+        "done",
+        {**ctx, "concepts": len(concepts), "mode": "document_thematic"},
+    )
 
-    emit(on_progress, "phrase_cluster", "running", ctx)
-    phrase_clusters = cluster_phrases(phrases, client=client)
     emit(
         on_progress,
         "phrase_cluster",
         "done",
-        {**ctx, "clusters": len(phrase_clusters)},
+        {**ctx, "skipped": True, "reason": "document-level categories"},
     )
 
     emit(on_progress, "concept_merge", "running", ctx)
-    merged = merge_concepts_with_llm(
-        english_sentences,
-        phrase_clusters,
-        phrases,
-        client=client,
-        model=model,
-    )
-    concepts = merged.get("concepts") or []
-    phrase_map = merged.get("phrase_map") or []
-    if not concepts:
-        raise ValueError("No concepts extracted from text.")
     emit(
         on_progress,
         "concept_merge",
@@ -140,8 +137,9 @@ def run_fcm_analysis(
         "review_tone": polarity_context.get("review_tone", "mixed"),
         "concept_valence": polarity_context.get("concept_valence", []),
         "english_sentences": english_sentences,
-        "phrases": phrases,
-        "phrase_clusters": phrase_clusters,
+        "concepts_by_sentence": concepts_by_sentence,
+        "phrases": extracted.get("phrases") or [],
+        "phrase_clusters": extracted.get("phrase_clusters") or [],
         "concepts": concepts,
         "phrase_map": phrase_map,
         "edges": edges,

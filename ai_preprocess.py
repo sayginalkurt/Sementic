@@ -54,7 +54,7 @@ Derive the concept set entirely from the input text. Do not use a predefined voc
 Rules:
 - English only; Title Case labels (1–4 words)
 - Reuse the exact same label when the same thematic idea appears in multiple sentences
-- Identify a concise set of distinct concepts for the full text; assign relevant concepts to each sentence
+- Identify every distinct thematic concept the full text supports; assign relevant concepts to each sentence
 - Do not output grammar words, fillers, pronouns, or raw text fragments
 - Do not output single content words where a multi-word construct is more accurate
 - Empty sentence → []
