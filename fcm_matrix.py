@@ -4,14 +4,25 @@ from __future__ import annotations
 
 from typing import Any
 
+from graph import linked_label_set
+from sign_scale import weight_label
+
+
+def _linked_labels(concepts: list[dict[str, Any]], edges: list[dict[str, Any]]) -> list[str]:
+    linked = linked_label_set(edges, src_key="source", tgt_key="target")
+    return [c["label"] for c in concepts if c["label"] in linked]
+
 
 def adjacency_from_edges(
     concepts: list[dict[str, Any]],
     edges: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Square adjacency matrix: rows = source, cols = target."""
-    labels = [c["label"] for c in concepts]
+    labels = _linked_labels(concepts, edges)
     n = len(labels)
+    if not n:
+        return {"labels": [], "values": []}
+
     idx = {lab: i for i, lab in enumerate(labels)}
     values = [[0.0] * n for _ in range(n)]
 
@@ -30,13 +41,23 @@ def fcm_graph_from_edges(
     edges: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """vis-network compatible directed FCM graph."""
-    labels = [c["label"] for c in concepts]
+    labels = _linked_labels(concepts, edges)
+    if not labels:
+        return {
+            "nodes": [],
+            "edges": [],
+            "stats": {"node_count": 0, "edge_count": 0, "kind": "fcm"},
+        }
+
     degree: dict[str, float] = {lab: 0.0 for lab in labels}
 
     for e in edges:
+        src, tgt = e.get("source"), e.get("target")
+        if src not in degree or tgt not in degree:
+            continue
         w = abs(float(e.get("weight", 0)))
-        degree[e["source"]] = degree.get(e["source"], 0) + w
-        degree[e["target"]] = degree.get(e["target"], 0) + w
+        degree[src] = degree.get(src, 0) + w
+        degree[tgt] = degree.get(tgt, 0) + w
 
     max_deg = max(degree.values()) if degree else 1.0
     nodes = [
@@ -49,25 +70,30 @@ def fcm_graph_from_edges(
         for lab in labels
     ]
 
-    max_w = max((abs(int(e.get("weight", 1))) for e in edges), default=2)
     vis_edges = []
+    max_w = max((abs(float(e.get("weight", 0))) for e in edges), default=1.0)
     for e in edges:
-        w = int(e.get("weight", 0))
+        src, tgt = e.get("source"), e.get("target")
+        if src not in degree or tgt not in degree:
+            continue
+        w = float(e.get("weight", 0))
         polarity = "positive" if w > 0 else "negative"
+        label = weight_label(w)
         vis_edges.append(
             {
-                "from": e["source"],
-                "to": e["target"],
+                "from": src,
+                "to": tgt,
                 "weight": abs(w),
-                "signed_weight": float(w),
+                "signed_weight": w,
                 "value": 1 + (abs(w) / max_w) * 6,
                 "polarity": polarity,
                 "direction": "a_to_b",
                 "strength": e.get("strength", "medium"),
+                "weight_label": label,
                 "evidence_sentence": e.get("evidence_sentence", ""),
                 "analyst_note": e.get("analyst_note", ""),
                 "title": (
-                    f"{e['source']} → {e['target']}: {w:+d}\n"
+                    f"{src} → {tgt}: {w:+.2f} ({label})\n"
                     f"{e.get('analyst_note', '')}"
                 ),
             }

@@ -507,6 +507,90 @@ body.lab {
   margin-bottom: 0.65rem;
 }
 
+.dataset-full-fold {
+  margin-bottom: 0.75rem;
+}
+
+.dataset-full-wrap {
+  max-height: 22rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  margin-top: 0.5rem;
+}
+
+.dataset-full-wrap .data-table {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.dataset-full-wrap .data-table td,
+.dataset-full-wrap .data-table th {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dataset-full-wrap .open-ended-col {
+  white-space: normal;
+  min-width: 16rem;
+  max-width: 24rem;
+}
+
+.dataset-compare {
+  margin: 0.75rem 0 1rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.dataset-compare summary {
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.dataset-compare-body {
+  padding: 0 0.65rem 0.65rem;
+}
+
+.dataset-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.dataset-compare-table th,
+.dataset-compare-table td {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.5rem;
+  vertical-align: top;
+  text-align: left;
+}
+
+.dataset-compare-table th {
+  background: var(--hi);
+  font-weight: 600;
+  width: 10rem;
+}
+
+.dataset-compare-table .col-pipeline {
+  color: var(--muted);
+  width: 38%;
+}
+
+.dataset-compare-table .col-dataset {
+  width: 38%;
+}
+
+.dataset-compare-table .match-ok {
+  color: #3d8f6e;
+}
+
+.dataset-compare-table .match-diff {
+  color: #b85a52;
+}
+
 .preview-cell {
   max-width: 14rem;
   font-size: 0.75rem;

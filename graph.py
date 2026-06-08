@@ -5,6 +5,51 @@ from __future__ import annotations
 from typing import Any
 
 
+def linked_label_set(
+    edges: list[dict[str, Any]],
+    *,
+    src_key: str = "from",
+    tgt_key: str = "to",
+) -> set[str]:
+    linked: set[str] = set()
+    for e in edges:
+        src = e.get(src_key)
+        tgt = e.get(tgt_key)
+        if src:
+            linked.add(str(src))
+        if tgt:
+            linked.add(str(tgt))
+    return linked
+
+
+def submatrix(labels: list[str], values: list[list[float]], keep: list[str]) -> dict[str, Any]:
+    if not keep:
+        return {"labels": [], "values": []}
+    idx = {lab: i for i, lab in enumerate(labels)}
+    n = len(keep)
+    out = [[0.0] * n for _ in range(n)]
+    for i, li in enumerate(keep):
+        for j, lj in enumerate(keep):
+            out[i][j] = float(values[idx[li]][idx[lj]])
+    return {"labels": keep, "values": out}
+
+
+def prune_graph_to_linked(graph: dict[str, Any]) -> dict[str, Any]:
+    """Drop nodes (and matrix rows/cols) that have no edge in this graph."""
+    edges = list(graph.get("edges") or [])
+    linked = linked_label_set(edges)
+    if not linked:
+        stats = dict(graph.get("stats") or {})
+        stats.update(node_count=0, edge_count=0)
+        return {"nodes": [], "edges": [], "stats": stats}
+
+    nodes = [n for n in (graph.get("nodes") or []) if n.get("id") in linked]
+    stats = dict(graph.get("stats") or {})
+    stats["node_count"] = len(nodes)
+    stats["edge_count"] = len(edges)
+    return {"nodes": nodes, "edges": edges, "stats": stats}
+
+
 def _off_diagonal_pairs(labels: list[str], values: list[list[float]]) -> list[tuple[int, int, float]]:
     n = len(labels)
     pairs: list[tuple[int, int, float]] = []
@@ -97,15 +142,17 @@ def matrix_to_graph(
         for e in edge_specs
     ]
 
-    return {
-        "nodes": nodes,
-        "edges": edges,
-        "stats": {
-            "node_count": len(nodes),
-            "edge_count": len(edges),
-            "kind": kind,
-        },
-    }
+    return prune_graph_to_linked(
+        {
+            "nodes": nodes,
+            "edges": edges,
+            "stats": {
+                "node_count": len(nodes),
+                "edge_count": len(edges),
+                "kind": kind,
+            },
+        }
+    )
 
 
 def graphs_from_matrices(matrices: dict[str, dict]) -> dict[str, dict]:

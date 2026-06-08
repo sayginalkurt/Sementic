@@ -25,11 +25,14 @@ load_dotenv(ROOT / ".env", override=True)
 from analysis_service import MIN_ANALYSIS_TEXT_LEN, run_sementic_analysis
 from auth import AppPasswordMiddleware, auth_enabled, register_auth_routes
 from dataset import (
+    comparison_fields_from_row,
     dataset_configured,
     dataset_source,
     get_open_ended_response,
     get_respondent,
     list_respondents,
+    list_respondents_full,
+    pipeline_comparison_from_analysis,
 )
 from fcm_service import run_fcm_analysis
 from google_drive import credentials_configured, drive_configured, service_account_email
@@ -147,6 +150,18 @@ async def dataset_config() -> dict:
     }
 
 
+@app.get("/api/dataset/respondents/full")
+async def dataset_respondents_full(q: str | None = None) -> dict:
+    if not dataset_configured():
+        raise HTTPException(503, "Dataset not configured.")
+    try:
+        return list_respondents_full(q=q)
+    except FileNotFoundError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Dataset error: {exc}") from exc
+
+
 @app.get("/api/dataset/respondents")
 async def dataset_respondents(q: str | None = None) -> dict:
     if not dataset_configured():
@@ -182,6 +197,7 @@ def _analyze_dataset_payload(
     on_progress: ProgressFn | None = None,
 ) -> dict:
     respondent_payload = get_respondent(respondent_id)
+    respondent = respondent_payload["respondent"]
     text = get_open_ended_response(respondent_id)
     analysis = _run_pipeline(
         text,
@@ -190,10 +206,12 @@ def _analyze_dataset_payload(
         on_progress=on_progress,
     )
     return {
-        "respondent": respondent_payload["respondent"],
+        "respondent": respondent,
         "source": respondent_payload["source"],
         "pipeline": normalize_pipeline(pipeline),
         "analysis": analysis,
+        "dataset_reference": comparison_fields_from_row(respondent),
+        "pipeline_output": pipeline_comparison_from_analysis(analysis),
     }
 
 

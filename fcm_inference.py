@@ -9,6 +9,7 @@ from typing import Any
 from openai import OpenAI
 
 from ai_preprocess import _chat_json, _openai_client
+from sign_scale import SCALE_PROMPT, resolve_edge_weight, weight_label
 
 POLARITY_SYSTEM = """You assess qualitative review tone and per-concept valence in context.
 
@@ -38,21 +39,20 @@ organization / manageable size → lower overwhelm → better visitor experience
 For each directed edge provide:
 - source: source concept label (exact match from list)
 - target: target concept label (exact match from list)
-- weight: integer -2, -1, 0, +1, or +2
-  +1 = positive influence, -1 = negative influence
-  +2 = strong positive, -2 = strong negative
-  0 = no direct relation (omit edges with weight 0)
-- strength: weak | medium | strong (weak/medium → ±1, strong → ±2)
+- weight: one of -1, -0.5, -0.25, 0.25, 0.5, 1 (omit weight 0)
+- strength: weak | medium | strong (used when weight omitted)
 - polarity: positive | negative (sign of influence)
 - evidence_sentence: exact or near-exact quote from the text supporting this edge
 - analyst_note: brief interpretation (note ambivalence when relevant)
+
+{scale_prompt}
 
 Rules:
 - Only use concept labels from the provided list
 - Include all well-evidenced causal links (richer maps are better when supported by text)
 - Do not invent relations without evidence in the text
 - Respect review tone and concept valence context
-- Return JSON only: {"edges": [...]}"""
+- Return JSON only: {{"edges": [...]}}"""
 
 FCM_EDGE_USER = """Review tone: {review_tone}
 
@@ -70,18 +70,8 @@ Concepts (use these labels exactly):
 Phrase evidence map:
 {phrase_map_json}"""
 
-_VALID_WEIGHTS = frozenset({-2, -1, 0, 1, 2})
 _VALID_STRENGTH = frozenset({"weak", "medium", "strong"})
 _VALID_POLARITY = frozenset({"positive", "negative"})
-
-
-def _strength_to_weight(strength: str, polarity: str, weight: int) -> int:
-    if weight in _VALID_WEIGHTS and weight != 0:
-        return weight
-    sign = -1 if polarity == "negative" else 1
-    if strength == "strong":
-        return sign * 2
-    return sign * 1
 
 
 def infer_polarity_context(
@@ -133,7 +123,7 @@ def infer_fcm_edges(
     data = _chat_json(
         oai,
         chosen,
-        system=FCM_EDGE_SYSTEM,
+        system=FCM_EDGE_SYSTEM.format(scale_prompt=SCALE_PROMPT),
         user=FCM_EDGE_USER.format(
             review_tone=polarity_context.get("review_tone", "mixed"),
             valence_json=json.dumps(
@@ -165,10 +155,12 @@ def infer_fcm_edges(
             strength = "medium"
 
         try:
-            weight = int(item.get("weight", 0))
+            raw_weight = item.get("weight", 0)
         except (TypeError, ValueError):
-            weight = 0
-        weight = _strength_to_weight(strength, polarity, weight)
+            raw_weight = 0
+        weight = resolve_edge_weight(
+            raw_weight, strength=strength, polarity=polarity
+        )
         if weight == 0:
             continue
 
@@ -177,6 +169,7 @@ def infer_fcm_edges(
                 "source": source,
                 "target": target,
                 "weight": weight,
+                "weight_label": weight_label(weight),
                 "strength": strength,
                 "polarity": polarity,
                 "evidence_sentence": str(item.get("evidence_sentence", "")).strip(),

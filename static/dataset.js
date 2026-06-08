@@ -22,10 +22,20 @@ const searchInput = document.getElementById("dataset-search");
 const tbody = document.querySelector("#respondents-table tbody");
 const sourceLabel = document.getElementById("dataset-source-label");
 const resultsRoot = document.getElementById("dataset-results-root");
+const fullFold = document.getElementById("dataset-full-fold");
+const fullWrap = document.getElementById("dataset-full-wrap");
+const fullLoadingEl = document.getElementById("dataset-full-loading");
+
+const COMPARISON_FIELDS = [
+  { key: "n_concepts", label: "n_concepts", pipeline: true },
+  { key: "n_relationships", label: "n_relationships", pipeline: true },
+  { key: "concepts", label: "concepts", pipeline: true },
+];
 
 let searchTimer = null;
 let networkInstance = null;
 let analyzing = false;
+let fullDatasetLoaded = false;
 
 function showMsg(text, isError = false) {
   configMsg.hidden = !text;
@@ -68,6 +78,129 @@ async function loadRespondents(q = "") {
   }
 }
 
+function fmtCell(val) {
+  if (val == null || val === "") return "—";
+  return String(val);
+}
+
+function renderFullDatasetTable(data) {
+  if (!fullWrap) return;
+  const cols = data.columns || [];
+  const rows = data.rows || [];
+  if (!cols.length) {
+    fullWrap.innerHTML = "<p class=\"hint\">No data.</p>";
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.className = "data-table dataset-full-table";
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  cols.forEach((col) => {
+    const th = document.createElement("th");
+    th.textContent = col;
+    if (col === "open_ended_response") th.classList.add("open-ended-col");
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    cols.forEach((col) => {
+      const td = document.createElement("td");
+      td.textContent = fmtCell(row[col]);
+      if (col === "open_ended_response") td.classList.add("open-ended-col");
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  fullWrap.innerHTML = "";
+  fullWrap.appendChild(table);
+}
+
+async function loadFullDataset(q = "") {
+  if (!fullWrap) return;
+  fullLoadingEl.hidden = false;
+  try {
+    const url = q
+      ? `/api/dataset/respondents/full?q=${encodeURIComponent(q)}`
+      : "/api/dataset/respondents/full";
+    const res = await fetch(url);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || "Failed to load full dataset");
+    renderFullDatasetTable(data);
+    fullDatasetLoaded = true;
+  } catch (err) {
+    fullWrap.innerHTML = `<p class="hint error">${escapeHtml(err.message || String(err))}</p>`;
+  } finally {
+    fullLoadingEl.hidden = true;
+  }
+}
+
+function renderComparisonPanel(rootEl, payload) {
+  const datasetRef = payload?.dataset_reference || {};
+  const pipelineOut = payload?.pipeline_output || {};
+  if (!Object.keys(datasetRef).length) return;
+
+  const fold = document.createElement("details");
+  fold.className = "fold dataset-compare";
+  fold.open = true;
+  fold.innerHTML = "<summary>[ EXPAND ] Dataset comparison — reference vs pipeline</summary>";
+
+  const body = document.createElement("div");
+  body.className = "dataset-compare-body";
+
+  const table = document.createElement("table");
+  table.className = "dataset-compare-table";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th class="col-dataset">Dataset (reference)</th>
+        <th class="col-pipeline">Pipeline output</th>
+      </tr>
+    </thead>
+  `;
+  const tbody = document.createElement("tbody");
+
+  COMPARISON_FIELDS.forEach(({ key, label, pipeline }) => {
+    const dsVal = datasetRef[key];
+    const plVal = pipeline ? pipelineOut[key] : null;
+    const tr = document.createElement("tr");
+
+    let matchClass = "";
+    if (pipeline && dsVal != null && plVal != null) {
+      if (key === "n_concepts" || key === "n_relationships") {
+        matchClass = Number(dsVal) === Number(plVal) ? "match-ok" : "match-diff";
+      } else if (key === "concepts") {
+        const norm = (s) =>
+          String(s || "")
+            .split("|")
+            .map((x) => x.trim().toLowerCase())
+            .filter(Boolean)
+            .sort()
+            .join("|");
+        matchClass = norm(dsVal) === norm(plVal) ? "match-ok" : "match-diff";
+      }
+    }
+
+    tr.innerHTML = `
+      <th>${escapeHtml(label)}</th>
+      <td class="col-dataset ${matchClass}">${escapeHtml(fmtCell(dsVal))}</td>
+      <td class="col-pipeline">${pipeline ? escapeHtml(fmtCell(plVal)) : "—"}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  body.appendChild(table);
+  fold.appendChild(body);
+  rootEl.appendChild(fold);
+}
+
 function renderTable(data) {
   sourceLabel.textContent = `SRC: ${data.source.toUpperCase()} · N=${data.count}`;
   tbody.innerHTML = "";
@@ -89,7 +222,7 @@ function renderTable(data) {
   });
 }
 
-function renderStatResult(rootEl, analysis, respondent) {
+function renderStatResult(rootEl, analysis, respondent, payload) {
   destroyResultNetwork();
   rootEl.innerHTML = "";
 
@@ -100,6 +233,8 @@ function renderStatResult(rootEl, analysis, respondent) {
     <span class="hint"> · ${escapeHtml(respondent.hidden_segment ?? "—")}</span>
   `;
   rootEl.appendChild(header);
+
+  renderComparisonPanel(rootEl, payload);
 
   const quote = document.createElement("blockquote");
   quote.className = "review-quote";
@@ -209,6 +344,7 @@ function renderDatasetResult(payload) {
       <span class="hint"> · FCM · ${escapeHtml(respondent.hidden_segment ?? "—")}</span>
     `;
     resultsRoot.appendChild(header);
+    renderComparisonPanel(resultsRoot, payload);
     const quote = document.createElement("blockquote");
     quote.className = "review-quote";
     quote.textContent = respondent.open_ended_response || "";
@@ -221,7 +357,7 @@ function renderDatasetResult(payload) {
     return;
   }
 
-  renderStatResult(resultsRoot, analysis, respondent);
+  renderStatResult(resultsRoot, analysis, respondent, payload);
   resultsRoot.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -258,7 +394,20 @@ async function analyzeRespondent(respondentId) {
 
 searchInput?.addEventListener("input", () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => loadRespondents(searchInput.value.trim()), 300);
+  const q = searchInput.value.trim();
+  searchTimer = setTimeout(() => {
+    loadRespondents(q);
+    if (fullFold?.open) {
+      fullDatasetLoaded = false;
+      loadFullDataset(q);
+    }
+  }, 300);
+});
+
+fullFold?.addEventListener("toggle", () => {
+  if (fullFold.open && !fullDatasetLoaded) {
+    loadFullDataset(searchInput?.value?.trim() || "");
+  }
 });
 
 async function bootstrap() {

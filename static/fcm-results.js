@@ -2,7 +2,7 @@
  * Render FCM pipeline results (concepts, edges, matrix, graph).
  */
 
-import { downloadMatrixXlsx, escapeHtml } from "./analysis-shared.js";
+import { downloadMatrixXlsx, escapeHtml, formatSignedWeight } from "./analysis-shared.js";
 
 const FCM_ACCENT = { node: "#5a4a8a", edge: "#8a7aad", hi: "#eeeaf8" };
 
@@ -14,9 +14,7 @@ export function destroyFcmNetworks() {
 }
 
 function formatFcmCell(v) {
-  const n = Number(v);
-  if (n === 0) return "0";
-  return n > 0 ? `+${n}` : String(n);
+  return formatSignedWeight(v);
 }
 
 function buildFcmMatrixTable(matrix) {
@@ -90,7 +88,7 @@ function mountFcmNetwork(container, graph, cardKey) {
       arrows: { to: { enabled: true, scaleFactor: 0.55 } },
       color: edgeColors[e.polarity] || edgeColors.positive,
       dashes: e.polarity === "negative",
-      width: 1 + Math.abs(e.weight || 1),
+      width: 1 + Math.abs(Number(e.signed_weight ?? e.weight) || 0.25) * 6,
     }))
   );
 
@@ -195,10 +193,11 @@ export function renderFcmResults(data, rootEl, opts = {}) {
   (data.edges || []).forEach((e) => {
     const tr = document.createElement("tr");
     const w = Number(e.weight);
+    const wl = e.weight_label || "";
     tr.innerHTML = `
       <td>${escapeHtml(e.source)}</td>
       <td>${escapeHtml(e.target)}</td>
-      <td class="${w < 0 ? "negative" : "high"}">${w > 0 ? "+" : ""}${w}</td>
+      <td class="${w < 0 ? "negative" : "high"}" title="${escapeHtml(wl)}">${formatSignedWeight(w)}</td>
       <td>${escapeHtml(e.strength || "")}</td>
       <td class="evidence-cell">${escapeHtml(e.evidence_sentence || "")}</td>
       <td class="note-cell">${escapeHtml(e.analyst_note || "")}</td>

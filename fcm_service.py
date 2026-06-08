@@ -8,6 +8,7 @@ from ai_preprocess import _openai_client, normalize_text, sentences_from_text
 from concept_hybrid import extract_fcm_document_concepts
 from fcm_inference import infer_fcm_edges, infer_polarity_context
 from fcm_matrix import adjacency_from_edges, fcm_graph_from_edges
+from graph import linked_label_set
 from lang_detect import detect_language, prepare_english_sentences
 from workflow import ProgressCallback, emit
 
@@ -114,6 +115,19 @@ def run_fcm_analysis(
         model=model,
     )
     emit(on_progress, "fcm_edges", "done", {**ctx, "edges": len(edges)})
+
+    linked = linked_label_set(edges, src_key="source", tgt_key="target")
+    concepts = [c for c in concepts if c["label"] in linked]
+    edges = [
+        e
+        for e in edges
+        if e.get("source") in linked and e.get("target") in linked
+    ]
+    phrase_map = [p for p in phrase_map if p.get("concept_label") in linked]
+    valence = polarity_context.get("concept_valence") or []
+    polarity_context["concept_valence"] = [
+        v for v in valence if v.get("label") in linked or v.get("concept") in linked
+    ]
 
     emit(on_progress, "adjacency_matrix", "running", ctx)
     matrix = adjacency_from_edges(concepts, edges)

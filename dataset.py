@@ -28,6 +28,12 @@ LIST_COLUMNS = [
     "n_relationships",
 ]
 
+COMPARISON_COLUMNS = [
+    "n_concepts",
+    "n_relationships",
+    "concepts",
+]
+
 _cache: dict[str, Any] = {"bytes": None, "source": None}
 
 
@@ -90,16 +96,27 @@ def _read_respondents_df() -> pd.DataFrame:
     return df
 
 
+def _scalar_value(val: Any, col: str) -> Any:
+    if pd.isna(val):
+        return None
+    if col == OPEN_ENDED_COL:
+        return str(val)
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        return int(val) if float(val).is_integer() else float(val)
+    if hasattr(val, "item"):
+        try:
+            v = val.item()
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return int(v) if float(v).is_integer() else float(v)
+        except (ValueError, AttributeError):
+            pass
+    return str(val)
+
+
 def _row_to_dict(row: pd.Series, *, include_text: bool = False) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for col in row.index:
-        val = row[col]
-        if pd.isna(val):
-            out[str(col)] = None
-        elif isinstance(val, (int, float)) and col != OPEN_ENDED_COL:
-            out[str(col)] = int(val) if float(val).is_integer() else float(val)
-        else:
-            out[str(col)] = str(val)
+        out[str(col)] = _scalar_value(row[col], str(col))
     text = (out.get(OPEN_ENDED_COL) or "").strip()
     if include_text:
         out[OPEN_ENDED_COL] = text
@@ -107,6 +124,64 @@ def _row_to_dict(row: pd.Series, *, include_text: bool = False) -> dict[str, Any
         out["open_ended_preview"] = text[:160] + ("…" if len(text) > 160 else "")
         out.pop(OPEN_ENDED_COL, None)
     return out
+
+
+def comparison_fields_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {col: row.get(col) for col in COMPARISON_COLUMNS}
+
+
+def pipeline_comparison_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
+    """Metrics from the pipeline run, aligned with dataset comparison columns."""
+    if analysis.get("pipeline") == "fcm":
+        concepts = [c.get("label", "") for c in analysis.get("concepts") or [] if c.get("label")]
+        edges = analysis.get("edges") or []
+        return {
+            "n_concepts": len(concepts),
+            "n_relationships": len(edges),
+            "concepts": " | ".join(concepts),
+        }
+
+    vocab = analysis.get("vocabulary") or []
+    graphs = analysis.get("graphs") or {}
+    co_graph = graphs.get("cooccurrence") or {}
+    edges = co_graph.get("edges") or []
+    pairs: set[tuple[str, str]] = set()
+    for e in edges:
+        a, b = str(e.get("from", "")), str(e.get("to", ""))
+        if a and b:
+            pairs.add((a, b) if a <= b else (b, a))
+
+    return {
+        "n_concepts": analysis.get("vocabulary_size", len(vocab)),
+        "n_relationships": len(pairs),
+        "concepts": " | ".join(vocab),
+    }
+
+
+def list_respondents_full(*, q: str | None = None) -> dict[str, Any]:
+    """All respondent rows with every column and full open-ended text."""
+    df = _read_respondents_df()
+    _, source = _get_workbook_bytes()
+
+    if q:
+        needle = q.strip().lower()
+        mask = df.apply(
+            lambda r: any(
+                needle in str(v).lower()
+                for v in r.values
+                if v is not None and not (isinstance(v, float) and pd.isna(v))
+            ),
+            axis=1,
+        )
+        df = df[mask]
+
+    rows = [_row_to_dict(row, include_text=True) for _, row in df.iterrows()]
+    return {
+        "source": source,
+        "count": len(rows),
+        "columns": [str(c) for c in df.columns],
+        "rows": rows,
+    }
 
 
 def list_respondents(*, q: str | None = None) -> dict[str, Any]:

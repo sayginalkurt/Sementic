@@ -22,9 +22,22 @@ export function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+export function formatSignedWeight(v) {
+  const n = Number(v);
+  if (n === 0) return "0";
+  if (n === 1) return "+1";
+  if (n === -1) return "-1";
+  if (n === 0.5) return "+0.5";
+  if (n === -0.5) return "-0.5";
+  if (n === 0.25) return "+0.25";
+  if (n === -0.25) return "-0.25";
+  return n > 0 ? `+${n.toFixed(2)}` : n.toFixed(2);
+}
+
 export function formatCell(v, key) {
   const n = Number(v);
   if (n === 0) return "0";
+  if ([0.25, 0.5, 1, -0.25, -0.5, -1].includes(n)) return formatSignedWeight(n);
   if (key === "semantic") return n.toFixed(3);
   if (key === "epistemic" || n < 0) return n.toFixed(2);
   return n % 1 === 0 ? String(Math.round(n)) : n.toFixed(2);
