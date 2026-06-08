@@ -25,6 +25,7 @@ const pipelineInput = document.getElementById("pipeline-input");
 const minFreqWrap = document.getElementById("min-freq-wrap");
 const protocolNoteFreetext = document.getElementById("protocol-note-freetext");
 const protocolNotePlaces = document.getElementById("protocol-note-places");
+const protocolNoteDataset = document.getElementById("protocol-note-dataset");
 const pipelineTabs = document.querySelectorAll(".pipeline-tab");
 const submitBtn = document.getElementById("submit-btn");
 const apiStatus = document.getElementById("api-status");
@@ -51,6 +52,12 @@ const PROTOCOL_NOTES = {
       "PROTOCOL B · STAT-3NET — Geo lookup → review fetch → per-review statistical pipeline",
     fcm:
       "PROTOCOL B · FCM — Geo lookup → review fetch → per-review FCM causal map",
+  },
+  dataset: {
+    statistical:
+      "PROTOCOL C · STAT-3NET — Drive/local dataset → respondent select → open_ended_response pipeline",
+    fcm:
+      "PROTOCOL C · FCM — Drive/local dataset → respondent select → FCM causal map",
   },
 };
 
@@ -421,7 +428,7 @@ form.addEventListener("submit", async (e) => {
 });
 
 function setSource(source) {
-  const valid = source === "places" ? "places" : "freetext";
+  const valid = ["freetext", "places", "dataset"].includes(source) ? source : "freetext";
   sourceTabs.forEach((tab) => {
     const on = tab.dataset.source === valid;
     tab.classList.toggle("on", on);
@@ -440,6 +447,9 @@ function setSource(source) {
   if (valid === "places") {
     window.dispatchEvent(new CustomEvent("sementic:places-panel-shown"));
   }
+  if (valid === "dataset") {
+    window.dispatchEvent(new CustomEvent("sementic:dataset-panel-shown"));
+  }
 }
 
 sourceTabs.forEach((tab) => {
@@ -453,18 +463,24 @@ const savedSource = (() => {
     return null;
   }
 })();
-setSource(savedSource === "places" ? "places" : "freetext");
+setSource(
+  savedSource === "places" || savedSource === "dataset" ? savedSource : "freetext"
+);
 
 function updatePipelineUi() {
   const isFcm = currentPipeline === "fcm";
   minFreqWrap?.classList.toggle("hidden-stat-only", isFcm);
   document.getElementById("places-min-freq-wrap")?.classList.toggle("hidden-stat-only", isFcm);
+  document.getElementById("dataset-min-freq-wrap")?.classList.toggle("hidden-stat-only", isFcm);
   if (pipelineInput) pipelineInput.value = currentPipeline;
   if (protocolNoteFreetext) {
     protocolNoteFreetext.textContent = PROTOCOL_NOTES.freetext[currentPipeline];
   }
   if (protocolNotePlaces) {
     protocolNotePlaces.textContent = PROTOCOL_NOTES.places[currentPipeline];
+  }
+  if (protocolNoteDataset) {
+    protocolNoteDataset.textContent = PROTOCOL_NOTES.dataset[currentPipeline];
   }
 }
 

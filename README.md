@@ -35,6 +35,9 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 | `GOOGLE_MAPS_API_KEY` | Maps place picker (browser) |
 | `GOOGLE_PLACES_API_KEY` | Optional; server review fetch (defaults to Maps key) |
 | `APP_PASSWORD` | App login password (Railway only; no gate when running locally) |
+| `DATASET_PATH` | Local path to `brand_trust_dataset.xlsx` (optional) |
+| `GOOGLE_DRIVE_DATASET_FILE_ID` | Drive file ID for dataset xlsx |
+| `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` | Service account key JSON (Railway) |
 
 4. spaCy English model (`en_core_web_sm`) is installed automatically via `requirements.txt` (no extra build step).
 5. Railway sets `PORT` automatically; the app binds to `0.0.0.0`.
@@ -61,6 +64,7 @@ git push -u origin main
 - [docs/METHODS.md](docs/METHODS.md) — how each analysis is computed  
 - [docs/PROMPTS.md](docs/PROMPTS.md) — OpenAI system/user prompts  
 - [docs/PLACES.md](docs/PLACES.md) — Google Maps place picker & reviews  
+- [docs/DATASET.md](docs/DATASET.md) — Google Drive / local respondent dataset  
 
 ## Project layout
 
@@ -72,6 +76,8 @@ git push -u origin main
 | `graph.py` | Matrix → network graph |
 | `ai_relations.py` | AI direction & polarity on graph links |
 | `google_places.py` | Google Places review fetch |
+| `dataset.py` | Respondent dataset loader |
+| `google_drive.py` | Drive file download (service account) |
 | `analysis_service.py` | STAT-3NET pipeline (`pipeline=statistical`) |
 | `fcm_service.py` | FCM pipeline (`pipeline=fcm`) |
 | `concept_hybrid.py` | spaCy phrases + embeddings + LLM concept merge |

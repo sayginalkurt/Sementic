@@ -9,3 +9,14 @@ output/
 .DS_Store
 *.log
 .cursor/
+
+# Secrets & local data — never commit
+brand_trust_dataset.xlsx
+fuzzymock-*.json
+*-credentials.json
+service-account*.json
+*-service-account*.json
+
+# Env variants (keep .env.example tracked)
+.env.*
+!.env.example

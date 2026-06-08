@@ -301,6 +301,10 @@ body.lab {
   color: var(--warn);
 }
 
+.source-tab.on[data-source="dataset"] .ch-id {
+  color: #6b5b95;
+}
+
 .source-panel {
   display: none;
 }
@@ -476,6 +480,57 @@ body.lab {
 
 .places-block .module-head {
   background: #6b5520;
+}
+
+.dataset-block .module-head {
+  background: #4a3d6b;
+}
+
+.dataset-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+
+.dataset-toolbar .place-search {
+  flex: 1;
+  min-width: 12rem;
+  margin-bottom: 0;
+}
+
+.dataset-table-wrap {
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  margin-bottom: 0.65rem;
+}
+
+.preview-cell {
+  max-width: 14rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.dataset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: center;
+}
+
+.dataset-results-root {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 2px solid var(--line);
+}
+
+.dataset-result-head {
+  margin-bottom: 0.5rem;
+  font: 600 0.82rem/1.3 var(--mono);
 }
 
 .results .module-head {

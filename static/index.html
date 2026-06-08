@@ -64,6 +64,18 @@
             <span class="ch-id">CH-B</span>
             Google Places
           </button>
+          <button
+            type="button"
+            class="source-tab"
+            role="tab"
+            id="tab-dataset"
+            aria-selected="false"
+            aria-controls="panel-dataset"
+            data-source="dataset"
+          >
+            <span class="ch-id">CH-C</span>
+            Dataset
+          </button>
         </div>
       </nav>
 
@@ -281,6 +293,73 @@
           </div>
         </div>
       </section>
+
+      <!-- ── CH-C: Dataset (Google Drive / local) ── -->
+      <section
+        id="panel-dataset"
+        class="source-panel"
+        role="tabpanel"
+        aria-labelledby="tab-dataset"
+        hidden
+      >
+        <p class="protocol-note" id="protocol-note-dataset">
+          PROTOCOL C · STAT-3NET — Drive/local dataset → respondent select → open_ended_response pipeline
+        </p>
+
+        <div class="lab-module block dataset-block" id="dataset-section" data-mod="20">
+          <header class="module-head">
+            <span class="mod-id">MOD-20</span>
+            <span class="mod-name">RESPONDENT DATASET</span>
+          </header>
+          <div class="module-body">
+            <p id="dataset-config-msg" class="hint sys-msg" hidden></p>
+
+            <div id="dataset-ui" hidden>
+              <div class="dataset-toolbar">
+                <label class="field-label inline" for="dataset-search">FILTER</label>
+                <input
+                  type="search"
+                  id="dataset-search"
+                  class="place-search"
+                  placeholder="&gt; respondent id, segment, gender…"
+                  autocomplete="off"
+                />
+                <span id="dataset-source-label" class="hint readout"></span>
+              </div>
+
+              <p id="dataset-loading" class="hint sys-msg" hidden>⟳ LOADING RESPONDENTS…</p>
+
+              <div class="dataset-table-wrap">
+                <table class="data-table" id="respondents-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Age</th>
+                      <th>Gender</th>
+                      <th>Segment</th>
+                      <th>Open-ended (preview)</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+
+              <div class="dataset-actions">
+                <label class="freq" id="dataset-min-freq-wrap">
+                  <span class="field-label inline">MIN_FREQ</span>
+                  <input type="number" id="dataset-min-freq" value="0" min="0" max="10" />
+                </label>
+              </div>
+
+              <p id="dataset-analyze-loading" class="hint sys-msg" hidden>
+                ⟳ PIPELINE RUNNING on selected respondent…
+              </p>
+              <div id="dataset-results-root" class="dataset-results-root" hidden></div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="lab-footer">
@@ -299,6 +378,7 @@
       crossorigin="anonymous"
     ></script>
     <script src="/static/app.js" type="module"></script>
+    <script src="/static/dataset.js" type="module"></script>
     <script src="/static/places.js" type="module"></script>
   </body>
 </html>

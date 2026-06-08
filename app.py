@@ -24,7 +24,15 @@ load_dotenv(ROOT / ".env", override=True)
 
 from analysis_service import MIN_ANALYSIS_TEXT_LEN, run_sementic_analysis
 from auth import AppPasswordMiddleware, auth_enabled, register_auth_routes
+from dataset import (
+    dataset_configured,
+    dataset_source,
+    get_open_ended_response,
+    get_respondent,
+    list_respondents,
+)
 from fcm_service import run_fcm_analysis
+from google_drive import credentials_configured, drive_configured, service_account_email
 from google_places import fetch_place_reviews, maps_api_key, places_api_key
 from workflow import emit, normalize_pipeline, progress_event
 
@@ -117,7 +125,118 @@ async def health() -> dict:
         "google_maps_configured": bool(maps_api_key()),
         "google_places_configured": bool(places_api_key()),
         "auth_required": auth_enabled(),
+        "dataset_configured": dataset_configured(),
+        "dataset_source": dataset_source(),
     }
+
+
+@app.get("/api/dataset/config")
+async def dataset_config() -> dict:
+    return {
+        "configured": dataset_configured(),
+        "source": dataset_source(),
+        "drive_configured": drive_configured(),
+        "drive_credentials": credentials_configured(),
+        "service_account_email": service_account_email(),
+    }
+
+
+@app.get("/api/dataset/respondents")
+async def dataset_respondents(q: str | None = None) -> dict:
+    if not dataset_configured():
+        raise HTTPException(
+            503,
+            "Dataset not configured. Use local DATASET_PATH or Google Drive env vars.",
+        )
+    try:
+        return list_respondents(q=q)
+    except FileNotFoundError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Dataset error: {exc}") from exc
+
+
+@app.get("/api/dataset/respondents/{respondent_id}")
+async def dataset_respondent(respondent_id: str) -> dict:
+    if not dataset_configured():
+        raise HTTPException(503, "Dataset not configured.")
+    try:
+        return get_respondent(respondent_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Dataset error: {exc}") from exc
+
+
+def _analyze_dataset_payload(
+    respondent_id: str,
+    *,
+    min_freq: int,
+    pipeline: str,
+    on_progress: ProgressFn | None = None,
+) -> dict:
+    respondent_payload = get_respondent(respondent_id)
+    text = get_open_ended_response(respondent_id)
+    analysis = _run_pipeline(
+        text,
+        min_freq=min_freq,
+        pipeline=pipeline,
+        on_progress=on_progress,
+    )
+    return {
+        "respondent": respondent_payload["respondent"],
+        "source": respondent_payload["source"],
+        "pipeline": normalize_pipeline(pipeline),
+        "analysis": analysis,
+    }
+
+
+@app.post("/api/dataset/respondents/{respondent_id}/analyze/stream")
+async def analyze_dataset_respondent_stream(
+    respondent_id: str,
+    min_freq: int = Form(0),
+    pipeline: str = Form("statistical"),
+) -> StreamingResponse:
+    if not dataset_configured():
+        raise HTTPException(503, "Dataset not configured.")
+
+    captured_id = respondent_id
+    captured_freq = min_freq
+    captured_pipeline = normalize_pipeline(pipeline)
+
+    def work(on_progress: ProgressFn) -> dict:
+        return _analyze_dataset_payload(
+            captured_id,
+            min_freq=captured_freq,
+            pipeline=captured_pipeline,
+            on_progress=on_progress,
+        )
+
+    return _ndjson_stream(work)
+
+
+@app.post("/api/dataset/respondents/{respondent_id}/analyze")
+async def analyze_dataset_respondent(
+    respondent_id: str,
+    min_freq: int = Form(0),
+    pipeline: str = Form("statistical"),
+) -> dict:
+    if not dataset_configured():
+        raise HTTPException(503, "Dataset not configured.")
+    try:
+        return _analyze_dataset_payload(
+            respondent_id,
+            min_freq=min_freq,
+            pipeline=pipeline,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Analysis error: {exc}") from exc
 
 
 @app.get("/api/places/config")
