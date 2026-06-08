@@ -10,7 +10,7 @@ from openai import OpenAI
 
 from ai_preprocess import _chat_json, _openai_client
 from graph import prune_graph_to_linked, submatrix, linked_label_set
-from sign_scale import SCALE_PROMPT, resolve_edge_weight, strength_polarity_to_weight, weight_label
+from sign_scale import SCALE_PROMPT, resolve_edge_weight, strength_from_weight, strength_polarity_to_weight, weight_label
 
 RELATION_SYSTEM_PROMPT = """You infer directed semantic relations between concept pairs using ONLY the provided English qualitative research text.
 
@@ -220,6 +220,7 @@ def _directed_edges(
             rel.get("weight")
             or resolve_edge_weight(None, strength=strength, polarity=polarity)
         )
+        strength = strength_from_weight(signed)
         label = weight_label(signed)
 
         def _edge(frm: str, to: str, dir_label: str) -> dict[str, Any]:

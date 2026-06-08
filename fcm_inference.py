@@ -9,7 +9,7 @@ from typing import Any
 from openai import OpenAI
 
 from ai_preprocess import _chat_json, _openai_client
-from sign_scale import SCALE_PROMPT, resolve_edge_weight, weight_label
+from sign_scale import SCALE_PROMPT, resolve_edge_weight, strength_from_weight, weight_label
 
 POLARITY_SYSTEM = """You assess qualitative review tone and per-concept valence in context.
 
@@ -40,7 +40,7 @@ For each directed edge provide:
 - source: source concept label (exact match from list)
 - target: target concept label (exact match from list)
 - weight: one of -1, -0.5, -0.25, 0.25, 0.5, 1 (omit weight 0)
-- strength: weak | medium | strong (used when weight omitted)
+- strength: weak | medium | strong — must match |weight|: weak=0.25, medium=0.5, strong=1
 - polarity: positive | negative (sign of influence)
 - evidence_sentence: exact or near-exact quote from the text supporting this edge
 - analyst_note: brief interpretation (note ambivalence when relevant)
@@ -48,7 +48,7 @@ For each directed edge provide:
 {scale_prompt}
 
 Rules:
-- Only use concept labels from the provided list
+- Only use concept labels listed under Concepts below (derived from this same text in an earlier step — do not invent new labels)
 - Include all well-evidenced causal links (richer maps are better when supported by text)
 - Do not invent relations without evidence in the text
 - Respect review tone and concept valence context
@@ -64,7 +64,7 @@ English text:
 {text}
 ---
 
-Concepts (use these labels exactly):
+Concepts (use these labels exactly — extracted from this text, not a fixed external vocabulary):
 {concepts_json}
 
 Phrase evidence map:
@@ -163,6 +163,7 @@ def infer_fcm_edges(
         )
         if weight == 0:
             continue
+        strength = strength_from_weight(weight)
 
         edges.append(
             {

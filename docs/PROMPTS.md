@@ -1,18 +1,45 @@
-# AI prompts
+# Tüm LLM promptları
 
-All OpenAI prompts used by the web application. Implemented in `ai_preprocess.py` (translation + concept coding) and `ai_relations.py` (direction + polarity).
+Bu dosya, pipeline'da OpenAI **chat completions** ile gönderilen tüm system/user promptlarının kaynak koduyla birebir metnini içerir.
 
-**API settings (shared):** `response_format={"type": "json_object"}`, `temperature=0.1`  
-**Model:** `OPENAI_MODEL` env var, default `gpt-4o-mini`
+| Ayar | Değer |
+|------|--------|
+| Model | `OPENAI_MODEL` (varsayılan `gpt-4o-mini`) |
+| `temperature` | `0.1` |
+| `response_format` | `{"type": "json_object"}` |
+
+**Kaynak dosyalar:** `ai_preprocess.py`, `ai_relations.py`, `concept_hybrid.py`, `fcm_inference.py`, `sign_scale.py`
+
+> **Not:** `concept_hybrid.py` içindeki embedding çağrısı (`text-embedding-3-small`) chat prompt değildir; sadece vektör üretir. Mevcut FCM yolunda kullanılmaz.
 
 ---
 
-## 1. Translation (batch)
+## 0. Paylaşılan — imzalı ağırlık skalası
 
-**Source:** `TRANSLATION_SYSTEM_PROMPT`, `TRANSLATION_USER_TEMPLATE`  
-**When:** First pass for each batch (≤18 sentences).
+**Kaynak:** `sign_scale.py` → `SCALE_PROMPT`  
+**Enjekte edildiği yerler:** STAT ilişki system prompt (`{scale_prompt}`), FCM edge system prompt (`{scale_prompt}`)
 
-### System
+```
+Signed weight scale (use exactly one value per edge):
+  -1    strong negative
+  -0.5  negative
+  -0.25 weak negative
+   0.25 weak positive
+   0.5  positive
+   1    strong positive
+
+Alternatively set strength (weak | medium | strong) + polarity (positive | negative):
+  weak + negative → -0.25, medium + negative → -0.5, strong + negative → -1
+  weak + positive → +0.25, medium + positive → +0.5, strong + positive → +1
+```
+
+---
+
+## 1. Çeviri — batch (system)
+
+**Kaynak:** `ai_preprocess.py` → `TRANSLATION_SYSTEM_PROMPT`  
+**Pipeline:** STAT, FCM (İngilizce değilse)  
+**Fonksiyon:** `_translate_batch`
 
 ```
 You are a professional translator for qualitative research texts.
@@ -22,7 +49,12 @@ Return JSON only: {"sentences": ["...", ...]}
 The output array MUST have exactly the same length and order as the input array.
 ```
 
-### User
+---
+
+## 2. Çeviri — batch (user, ilk deneme)
+
+**Kaynak:** `ai_preprocess.py` → `TRANSLATION_USER_TEMPLATE`  
+**Değişkenler:** `{count}`, `{sentences_json}`
 
 ```
 Translate exactly {count} sentences to English.
@@ -33,16 +65,12 @@ Input JSON array:
 {sentences_json}
 ```
 
-**Variables:** `{count}` — batch size; `{sentences_json}` — JSON array of source sentences.
-
 ---
 
-## 2. Translation (retry)
+## 3. Çeviri — batch (user, retry)
 
-**Source:** `TRANSLATION_RETRY_TEMPLATE`  
-**When:** Batch response length does not match input.
-
-### User
+**Kaynak:** `ai_preprocess.py` → `TRANSLATION_RETRY_TEMPLATE`  
+**Değişkenler:** `{got}`, `{count}`, `{sentences_json}`
 
 ```
 Your last answer had {got} strings but MUST have exactly {count}.
@@ -53,37 +81,28 @@ Input JSON array:
 {sentences_json}
 ```
 
-**Variables:** `{got}`, `{count}`, `{sentences_json}`
-
 ---
 
-## 3. Translation (single-sentence fallback)
+## 4. Çeviri — tek cümle (system)
 
-**Source:** `TRANSLATE_ONE_SYSTEM`  
-**When:** Batch + retry still return wrong count; one call per missing sentence.
-
-### System
+**Kaynak:** `ai_preprocess.py` → `TRANSLATE_ONE_SYSTEM`  
+**Fonksiyon:** `_translate_one_sentence` (batch retry sonrası fallback)
 
 ```
 Translate the given sentence to English. Return JSON only: {"text": "..."}
 ```
 
-### User
+**User:** Ham cümle metni (şablon yok; max 8000 karakter).
 
-The raw sentence text (no template).
-
-**Expected JSON:** `{"text": "..."}`
+**Beklenen JSON:** `{"text": "..."}`
 
 ---
 
-## 4. Thematic concept extraction
+## 5. STAT — tematik kavram çıkarımı (system)
 
-**Source:** `CONCEPT_SYSTEM_PROMPT`, `CONCEPT_USER_TEMPLATE`  
-**When:** Once per analyze, on joined English sentences.
-
-Concepts are **thematic constructs** (codebook labels), not individual words. The model derives the concept set from the input text only — no reference examples or predefined vocabulary in the prompt.
-
-### System
+**Kaynak:** `ai_preprocess.py` → `CONCEPT_SYSTEM_PROMPT`  
+**Pipeline:** STAT (S1)  
+**Fonksiyon:** `_extract_concepts_from_english`
 
 ```
 You are an expert qualitative researcher coding THEMATIC CONCEPTS from English open-ended text.
@@ -95,14 +114,19 @@ Derive the concept set entirely from the input text. Do not use a predefined voc
 Rules:
 - English only; Title Case labels (1–4 words)
 - Reuse the exact same label when the same thematic idea appears in multiple sentences
-- Include every distinct thematic concept the full text supports; assign relevant concepts to each sentence
+- Identify every distinct thematic concept the full text supports; assign relevant concepts to each sentence
 - Do not output grammar words, fillers, pronouns, or raw text fragments
 - Do not output single content words where a multi-word construct is more accurate
 - Empty sentence → []
 - Return valid JSON only
 ```
 
-### User
+---
+
+## 6. STAT — tematik kavram çıkarımı (user)
+
+**Kaynak:** `ai_preprocess.py` → `CONCEPT_USER_TEMPLATE`  
+**Değişkenler:** `{count}`, `{text}` (max 120.000 karakter)
 
 ```
 Read the full text first and derive the thematic concept codebook from the content.
@@ -124,22 +148,17 @@ Text:
 ---
 ```
 
-**Variables:** `{count}` — number of sentences; `{text}` — English lines joined with newlines (truncated at 120,000 chars).
-
-**Expected JSON:** `{"sentences": [["Concept Label", ...], ...]}`
-
-### Post-processing (not a prompt)
-
-Concepts are normalized to **Title Case** and filtered via `CONCEPT_BLOCKLIST` and `ENGLISH_STOPWORDS` (`ai_preprocess.py`).
+**Beklenen JSON:** `{"sentences": [["Concept Label", ...], ...]}`
 
 ---
 
-## 5. Directed relations and polarity
+## 7. STAT — yönlü ilişkiler (system)
 
-**Source:** `RELATION_SYSTEM_PROMPT`, `RELATION_USER_TEMPLATE`, `KIND_NOTES`  
-**When:** Per analysis type (`cooccurrence`, `semantic`, `epistemic`), batched concept pairs (≤24 pairs per call).
+**Kaynak:** `ai_relations.py` → `RELATION_SYSTEM_PROMPT` (+ `SCALE_PROMPT` enjekte)  
+**Pipeline:** STAT — `cooccurrence`, `semantic`, `epistemic` (≤24 çift / çağrı)  
+**Fonksiyon:** `_infer_relations_batch`
 
-### System
+`{scale_prompt}` yerine Bölüm 0'daki skala metni gelir.
 
 ```
 You infer directed semantic relations between concept pairs using ONLY the provided English qualitative research text.
@@ -152,13 +171,35 @@ For each pair, concepts are given as (a, b) in alphabetical order. Return for ea
 - polarity:
   - "positive" — supportive, aligned, coherent association in context
   - "negative" — tension, opposition, trade-off, inhibition, or conflict between concepts
+- strength:
+  - "weak" — tentative or indirect link
+  - "medium" — clear association in context
+  - "strong" — dominant, explicit link in the text
+- weight (optional): one of -1, -0.5, -0.25, 0.25, 0.5, 1 — if omitted, derived from strength + polarity
+
+Signed weight scale (use exactly one value per edge):
+  -1    strong negative
+  -0.5  negative
+  -0.25 weak negative
+   0.25 weak positive
+   0.5  positive
+   1    strong positive
+
+Alternatively set strength (weak | medium | strong) + polarity (positive | negative):
+  weak + negative → -0.25, medium + negative → -0.5, strong + negative → -1
+  weak + positive → +0.25, medium + positive → +0.5, strong + positive → +1
 
 Return JSON only:
-{"relations": [{"a": "...", "b": "...", "direction": "a_to_b|b_to_a|mutual", "polarity": "positive|negative"}]}
+{"relations": [{"a": "...", "b": "...", "direction": "a_to_b|b_to_a|mutual", "polarity": "positive|negative", "strength": "weak|medium|strong", "weight": <optional>}]}
 Use exact concept strings from the input. One object per pair listed.
 ```
 
-### User
+---
+
+## 8. STAT — yönlü ilişkiler (user)
+
+**Kaynak:** `ai_relations.py` → `RELATION_USER_TEMPLATE`  
+**Değişkenler:** `{kind}`, `{kind_note}`, `{text}` (max 80.000 karakter), `{pairs_json}`
 
 ```
 Analysis type: {kind}
@@ -173,79 +214,280 @@ Concept pairs to label (alphabetical a, b):
 {pairs_json}
 ```
 
-**Variables:**
+### `{kind_note}` değerleri (`KIND_NOTES`)
 
-| Variable | Description |
-|----------|-------------|
-| `{kind}` | `cooccurrence`, `semantic`, or `epistemic` |
-| `{kind_note}` | See table below |
-| `{text}` | Full English source (truncated at 80,000 chars) |
-| `{pairs_json}` | `[{"a": "...", "b": "..."}, ...]` |
-
-### Analysis context (`KIND_NOTES`)
-
-| `kind` | `kind_note` |
-|--------|-------------|
+| `{kind}` | `{kind_note}` |
+|----------|----------------|
 | `cooccurrence` | Pairs co-occur in the same sentence; infer causal or logical direction from discourse, not just proximity. |
 | `semantic` | Pairs are distributionally similar; infer how meanings relate directionally in the argument. |
 | `epistemic` | ENA-style association; infer epistemic flow (what supports or constrains what). |
 
-**Expected JSON:**
+**Beklenen JSON:**
 
 ```json
 {
   "relations": [
-    {"a": "concept_a", "b": "concept_b", "direction": "a_to_b", "polarity": "positive"}
+    {
+      "a": "Concept A",
+      "b": "Concept B",
+      "direction": "a_to_b",
+      "polarity": "positive",
+      "strength": "medium",
+      "weight": 0.5
+    }
   ]
 }
 ```
 
-**Defaults if a pair is missing from the response:** `direction: "mutual"`, `polarity: "positive"`.
+**Varsayılan (eksik çift):** `direction: mutual`, `polarity: positive`, `strength: medium`, `weight: 0.5`
 
 ---
 
-## Call order (typical web analyze)
+## 9. FCM — belge düzeyi kavram codebook (system)
 
-1. Translation batches → optional retry → optional per-sentence fallback  
-2. Concept extraction (one call)  
-3. Relation inference × 3 analysis types (multiple batches per type)
+**Kaynak:** `concept_hybrid.py` → `FCM_DOCUMENT_CONCEPT_SYSTEM`  
+**Pipeline:** FCM (S2) — aktif yol  
+**Fonksiyon:** `extract_fcm_document_concepts`
 
-See [FLOW.md](FLOW.md) for the full pipeline.
+```
+You are a qualitative researcher building a thematic concept codebook from one open-ended response.
 
----
+Read the FULL text for meaning. Identify broad THEMATIC CONCEPTS (codebook-level categories) — NOT individual words, lemmas, noun phrases, or surface fragments.
 
-## 6. FCM — document-level thematic concepts
+Derive the concept set entirely from the input. Do not use a predefined vocabulary or copy labels from instructions.
 
-**Source:** `concept_hybrid.py` — `extract_fcm_document_concepts`  
-**When:** After translation, before polarity and edge inference.
-
-Reads the full open-ended response and derives a **document-level codebook** of broad thematic categories (Title Case constructs), not spaCy noun phrases or word-level labels. Concept count is driven by the text — no fixed target or maximum. Each sentence is tagged with which concepts it expresses.
-
-Downstream FCM edge inference uses this compact concept list.
-
----
-
-## 7. FCM — polarity context
-
-**Source:** `fcm_inference.py` — `POLARITY_SYSTEM`, `POLARITY_USER`  
-**When:** After concept merge, before edge inference.
-
-Returns `review_tone` and per-concept `concept_valence` with ambivalence notes (e.g. small size + good organization → navigability).
+Rules:
+- English Title Case labels (1–4 words each)
+- Include every distinct thematic category the text supports — no fixed count or upper limit
+- Each concept must be a meaningful thematic category, not a word count or text fragment
+- Reuse the exact same label when the same idea appears in multiple sentences
+- Map which concepts are expressed in each sentence
+- Empty sentence → []
+- Return valid JSON only
+```
 
 ---
 
-## 8. FCM — causal edges
+## 10. FCM — belge düzeyi kavram codebook (user)
 
-**Source:** `fcm_inference.py` — `FCM_EDGE_SYSTEM`, `FCM_EDGE_USER`  
-**When:** Final LLM step; uses concepts, phrase map, polarity context, and full English text.
+**Kaynak:** `concept_hybrid.py` → `FCM_DOCUMENT_CONCEPT_USER`  
+**Değişkenler:** `{sentences_json}`, `{count}`
 
-Each edge: `source`, `target`, `weight` (−2..+2), `strength`, `polarity`, `evidence_sentence`, `analyst_note`.
+```
+English text (one open-ended response), sentence by sentence:
+{sentences_json}
 
-**Call order (FCM):**
+Return JSON:
+{
+  "concepts": ["...", "..."],
+  "sentences": [
+    ["...", "..."],
+    ...
+  ]
+}
 
-1. Language detect (no LLM)
-2. Translation batches (if not English)
-3. spaCy phrases + OpenAI embeddings (no chat)
-4. Document-level thematic concept codebook (one LLM call)
-5. Polarity context (one chat call)
-6. FCM edges (one chat call)
+The "concepts" array is the document-level codebook (broad thematic categories).
+The "sentences" array must have exactly {count} entries, aligned with the input.
+```
+
+**Beklenen JSON:** `concepts` (codebook dizisi) + `sentences` (cümle başına kavram etiketleri)
+
+---
+
+## 11. FCM — polarity context (system)
+
+**Kaynak:** `fcm_inference.py` → `POLARITY_SYSTEM`  
+**Fonksiyon:** `infer_polarity_context`
+
+```
+You assess qualitative review tone and per-concept valence in context.
+
+Consider ambivalence: e.g. "not very large" may be neutral-to-positive when followed by "well organized and easy to explore without feeling overwhelmed" — small size increases navigability.
+
+Return JSON only:
+{
+  "review_tone": "mostly_positive|mixed|mostly_negative",
+  "concept_valence": [
+    {"concept": "...", "valence": "positive|negative|neutral|ambivalent", "note": "..."}
+  ]
+}
+```
+
+---
+
+## 12. FCM — polarity context (user)
+
+**Kaynak:** `fcm_inference.py` → `POLARITY_USER`  
+**Değişkenler:** `{text}` (max 80.000 karakter), `{concepts_json}`
+
+```
+English text:
+---
+{text}
+---
+
+Concepts:
+{concepts_json}
+```
+
+---
+
+## 13. FCM — causal edge inference (system)
+
+**Kaynak:** `fcm_inference.py` → `FCM_EDGE_SYSTEM` (+ `SCALE_PROMPT` enjekte)  
+**Fonksiyon:** `infer_fcm_edges`
+
+`{scale_prompt}` yerine Bölüm 0'daki skala metni gelir.
+
+```
+You build a Fuzzy Cognitive Map (FCM) from qualitative text.
+
+Infer CAUSAL or INFLUENCE relations between concepts (not mere co-occurrence). Example:
+organization / manageable size → lower overwhelm → better visitor experience
+
+For each directed edge provide:
+- source: source concept label (exact match from list)
+- target: target concept label (exact match from list)
+- weight: one of -1, -0.5, -0.25, 0.25, 0.5, 1 (omit weight 0)
+- strength: weak | medium | strong — must match |weight|: weak=0.25, medium=0.5, strong=1
+- polarity: positive | negative (sign of influence)
+- evidence_sentence: exact or near-exact quote from the text supporting this edge
+- analyst_note: brief interpretation (note ambivalence when relevant)
+
+Signed weight scale (use exactly one value per edge):
+  -1    strong negative
+  -0.5  negative
+  -0.25 weak negative
+   0.25 weak positive
+   0.5  positive
+   1    strong positive
+
+Alternatively set strength (weak | medium | strong) + polarity (positive | negative):
+  weak + negative → -0.25, medium + negative → -0.5, strong + negative → -1
+  weak + positive → +0.25, medium + positive → +0.5, strong + positive → +1
+
+Rules:
+- Only use concept labels listed under Concepts below (derived from this same text — do not invent new labels)
+- Include all well-evidenced causal links (richer maps are better when supported by text)
+- Do not invent relations without evidence in the text
+- Respect review tone and concept valence context
+- Return JSON only: {"edges": [...]}
+```
+
+---
+
+## 14. FCM — causal edge inference (user)
+
+**Kaynak:** `fcm_inference.py` → `FCM_EDGE_USER`  
+**Değişkenler:** `{review_tone}`, `{valence_json}`, `{text}` (max 80.000 karakter), `{concepts_json}`, `{phrase_map_json}` (max 80 kayıt)
+
+```
+Review tone: {review_tone}
+
+Concept valence context:
+{valence_json}
+
+English text:
+---
+{text}
+---
+
+Concepts (use these labels exactly — extracted from this text, not a fixed external vocabulary):
+{concepts_json}
+
+Phrase evidence map:
+{phrase_map_json}
+```
+
+**Beklenen edge alanları:** `source`, `target`, `weight`, `strength`, `polarity`, `evidence_sentence`, `analyst_note`
+
+**Post-processing:** Etiket eşleştirme case-insensitive; `strength` nihai `weight`'ten türetilir; bağlantısız kavramlar graf/matristen çıkarılır.
+
+---
+
+## 15. Legacy — phrase cluster merge (system)
+
+**Kaynak:** `concept_hybrid.py` → `CONCEPT_MERGE_SYSTEM`  
+**Durum:** Mevcut FCM pipeline'ında **kullanılmıyor** (`merge_concepts_with_llm` — eski spaCy + embedding yolu)
+
+```
+You are a qualitative research analyst labeling extracted phrases for a fuzzy cognitive map.
+
+Output THEMATIC CONCEPT labels (codebook-level constructs) derived from the input — NOT individual words or lemmas.
+
+Merge only when phrases are near-paraphrases of the same construct.
+Do not collapse unrelated phrases into one broad generic bucket.
+
+Rules:
+- English Title Case labels (1–4 words), specific rather than generic
+- Derive labels from the text and phrase clusters; do not use a predefined vocabulary
+- Every phrase maps to exactly one concept
+- Keep distinct thematic ideas separate when in doubt
+- Return valid JSON only
+```
+
+---
+
+## 16. Legacy — phrase cluster merge (user)
+
+**Kaynak:** `concept_hybrid.py` → `CONCEPT_MERGE_USER`  
+**Değişkenler:** `{sentences_json}`, `{clusters_json}`, `{target_concepts}`, `{min_concepts}`, `{max_concepts}`
+
+```
+English text (by sentence):
+{sentences_json}
+
+Phrase clusters from NLP + embedding (cluster_id → phrases):
+{clusters_json}
+
+Target roughly {target_concepts} concepts (between {min_concepts} and {max_concepts}). Do not over-merge.
+
+Return JSON:
+{
+  "concepts": [
+    {"id": "c1", "label": "concept label", "phrases": ["phrase1", "phrase2"]}
+  ],
+  "phrase_map": [
+    {"sentence_idx": 0, "phrase": "...", "concept_id": "c1"}
+  ]
+}
+```
+
+---
+
+## Çağrı sırası özeti
+
+### STAT (statistical / STAT-3NET)
+
+| # | Prompt | Tekrar |
+|---|--------|--------|
+| 1–4 | Çeviri (batch / retry / tek cümle) | Batch başına 1–2 + gerekirse cümle başına |
+| 5–6 | Tematik kavram | 1× |
+| 7–8 | Yönlü ilişkiler | 3 matris türü × N batch |
+
+### FCM
+
+| # | Prompt | Tekrar |
+|---|--------|--------|
+| 1–4 | Çeviri (gerekirse) | Batch başına |
+| 9–10 | Belge düzeyi kavram | 1× |
+| 11–12 | Polarity context | 1× |
+| 13–14 | FCM edges | 1× |
+
+---
+
+## Hızlı indeks
+
+| # | Ad | Dosya | Sabit adı |
+|---|-----|-------|-----------|
+| 0 | Skala | `sign_scale.py` | `SCALE_PROMPT` |
+| 1 | Çeviri system | `ai_preprocess.py` | `TRANSLATION_SYSTEM_PROMPT` |
+| 2 | Çeviri user | `ai_preprocess.py` | `TRANSLATION_USER_TEMPLATE` |
+| 3 | Çeviri retry | `ai_preprocess.py` | `TRANSLATION_RETRY_TEMPLATE` |
+| 4 | Çeviri tek | `ai_preprocess.py` | `TRANSLATE_ONE_SYSTEM` |
+| 5–6 | STAT kavram | `ai_preprocess.py` | `CONCEPT_SYSTEM_PROMPT`, `CONCEPT_USER_TEMPLATE` |
+| 7–8 | STAT ilişki | `ai_relations.py` | `RELATION_SYSTEM_PROMPT`, `RELATION_USER_TEMPLATE` |
+| 9–10 | FCM kavram | `concept_hybrid.py` | `FCM_DOCUMENT_CONCEPT_SYSTEM`, `FCM_DOCUMENT_CONCEPT_USER` |
+| 11–12 | FCM polarity | `fcm_inference.py` | `POLARITY_SYSTEM`, `POLARITY_USER` |
+| 13–14 | FCM edge | `fcm_inference.py` | `FCM_EDGE_SYSTEM`, `FCM_EDGE_USER` |
+| 15–16 | Legacy merge | `concept_hybrid.py` | `CONCEPT_MERGE_SYSTEM`, `CONCEPT_MERGE_USER` |

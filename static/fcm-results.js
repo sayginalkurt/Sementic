@@ -184,7 +184,7 @@ export function renderFcmResults(data, rootEl, opts = {}) {
   edgeTable.innerHTML = `
     <thead>
       <tr>
-        <th>source</th><th>target</th><th>w</th><th>str</th>
+        <th>source</th><th>target</th><th>w</th><th>strength</th>
         <th>evidence</th><th>analyst note</th>
       </tr>
     </thead>

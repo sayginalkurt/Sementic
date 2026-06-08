@@ -24,6 +24,12 @@ STRENGTH_TO_MAGNITUDE: dict[str, float] = {
     "strong": 1.0,
 }
 
+MAGNITUDE_TO_STRENGTH: dict[float, str] = {
+    0.25: "weak",
+    0.5: "medium",
+    1.0: "strong",
+}
+
 _LEGACY_INT_WEIGHTS: dict[int, float] = {
     -2: -1.0,
     -1: -0.5,
@@ -88,6 +94,12 @@ def resolve_edge_weight(
     if w != 0.0:
         return w
     return strength_polarity_to_weight(strength, polarity)
+
+
+def strength_from_weight(weight: float) -> str:
+    """Map normalized |weight| to weak / medium / strong."""
+    mag = abs(normalize_weight(weight))
+    return MAGNITUDE_TO_STRENGTH.get(mag, "medium")
 
 
 def weight_label(weight: float) -> str:
